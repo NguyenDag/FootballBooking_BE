@@ -1,4 +1,4 @@
-﻿
+
 using System.Text;
 using FootballBooking_BE.Data;
 using FootballBooking_BE.Middleware;
@@ -22,6 +22,18 @@ namespace FootballBooking_BE
             // Add services to the container.
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("MyCnn")));
+
+            // ─── CORS ─────────────────────────────────────────────────────
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAll",
+                    policy =>
+                    {
+                        policy.AllowAnyOrigin()
+                              .AllowAnyMethod()
+                              .AllowAnyHeader();
+                    });
+            });
 
             // ─── JWT AUTHENTICATION ───────────────────────────────────────
             var jwtSettings = builder.Configuration.GetSection("Jwt");
@@ -69,6 +81,12 @@ namespace FootballBooking_BE
             builder.Services.AddScoped<IAuthRepository, AuthRepository>();
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<IJwtService, JwtService>();
+            builder.Services.AddScoped<IPitchRepository, PitchRepository>();
+            builder.Services.AddScoped<IPitchService, PitchService>();
+            builder.Services.AddScoped<IPriceSlotRepository, PriceSlotRepository>();
+            builder.Services.AddScoped<IPriceSlotService, PriceSlotService>();
+            builder.Services.AddScoped<IBookingRepository, BookingRepository>();
+            builder.Services.AddScoped<IBookingService, BookingService>();
 
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
