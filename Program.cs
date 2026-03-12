@@ -146,6 +146,9 @@ namespace FootballBooking_BE
 
             app.MapControllers();
 
+            // Chuyển hướng mặc định về Swagger
+            app.MapGet("/", () => Results.Redirect("/swagger"));
+
             app.Run();
         }
     }
