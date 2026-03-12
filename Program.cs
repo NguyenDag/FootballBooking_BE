@@ -67,6 +67,8 @@ namespace FootballBooking_BE
 
             // ─── DEPENDENCY INJECTION ─────────────────────────────────────
             builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+            builder.Services.AddScoped<IStaffRepository, StaffRepository>();
+            builder.Services.AddScoped<IStaffService, StaffService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<IJwtService, JwtService>();
 

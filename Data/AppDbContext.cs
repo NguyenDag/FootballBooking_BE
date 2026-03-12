@@ -23,6 +23,7 @@ namespace FootballBooking_BE.Data
         public DbSet<RefundPolicy> RefundPolicies => Set<RefundPolicy>();
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
         public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+        public DbSet<StaffShift> StaffShifts => Set<StaffShift>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -387,6 +388,28 @@ namespace FootballBooking_BE.Data
                         CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                     }
                 );
+            });
+
+            modelBuilder.Entity<StaffShift>(e =>
+            {
+                e.HasCheckConstraint("CK_StaffShift_DayOfWeek",
+                    "[DayOfWeek] BETWEEN 1 AND 7");
+
+                e.HasCheckConstraint("CK_StaffShift_Time",
+                    "[StartTime] < [EndTime]");
+
+                e.HasIndex(s => new { s.StaffId, s.PitchId, s.DayOfWeek })
+                 .HasDatabaseName("IDX_StaffShift_Lookup");
+
+                e.HasOne(s => s.Staff)
+                 .WithMany()
+                 .HasForeignKey(s => s.StaffId)
+                 .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(s => s.Pitch)
+                 .WithMany()
+                 .HasForeignKey(s => s.PitchId)
+                 .OnDelete(DeleteBehavior.Restrict);
             });
         }
     }
