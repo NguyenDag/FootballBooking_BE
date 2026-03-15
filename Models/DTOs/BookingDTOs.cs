@@ -43,6 +43,7 @@ namespace FootballBooking_BE.Models.DTOs
         public int DurationMinutes { get; set; }
         public decimal PriceAtBooking { get; set; }
         public string Status { get; set; } = null!;
+        public string? CancellationReason { get; set; }
     }
 
     public class CancelBookingRequest

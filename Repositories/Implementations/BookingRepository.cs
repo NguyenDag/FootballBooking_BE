@@ -88,5 +88,16 @@ namespace FootballBooking_BE.Repositories.Implementations
             return await _context.StaffPitchAssignments
                 .AnyAsync(a => a.StaffId == staffId && a.PitchId == pitchId);
         }
+
+        public async Task<IEnumerable<BookingDetail>> GetAllBookingDetailsAsync()
+        {
+            return await _context.BookingDetails
+                .Include(d => d.Pitch)
+                .Include(d => d.Booking)
+                    .ThenInclude(b => b.User)
+                .OrderByDescending(d => d.PlayDate)
+                    .ThenByDescending(d => d.StartTime)
+                .ToListAsync();
+        }
     }
 }

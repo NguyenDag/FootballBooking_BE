@@ -1,4 +1,4 @@
-﻿using FootballBooking_BE.Common;
+using FootballBooking_BE.Common;
 using FootballBooking_BE.Data.Entities;
 using FootballBooking_BE.Models.DTOs.Staff;
 using FootballBooking_BE.Repositories.Interfaces;
@@ -332,6 +332,13 @@ namespace FootballBooking_BE.Services.Implementations
             detail.StaffId = staffId;
 
             await _staffRepo.UpdateBookingDetailAsync(detail);
+
+            // Sync parent Booking status if it's currently PENDING
+            if (detail.Booking != null && detail.Booking.Status.Equals("PENDING", StringComparison.OrdinalIgnoreCase))
+            {
+                detail.Booking.Status = "CONFIRMED";
+                await _staffRepo.UpdateBookingAsync(detail.Booking);
+            }
 
             _logger.LogInformation(
                 "Staff {StaffId} confirmed BookingDetail {DetailId}", staffId, detailId);

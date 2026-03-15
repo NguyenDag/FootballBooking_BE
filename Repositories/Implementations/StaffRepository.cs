@@ -1,4 +1,4 @@
-﻿using FootballBooking_BE.Data;
+using FootballBooking_BE.Data;
 using FootballBooking_BE.Data.Entities;
 using FootballBooking_BE.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -189,6 +189,13 @@ namespace FootballBooking_BE.Repositories.Implementations
             _context.BookingDetails.Update(detail);
             await _context.SaveChangesAsync();
             return detail;
+        }
+
+        public async Task<Booking> UpdateBookingAsync(Booking booking)
+        {
+            _context.Bookings.Update(booking);
+            await _context.SaveChangesAsync();
+            return booking;
         }
     }
 }
