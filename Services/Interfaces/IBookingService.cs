@@ -12,5 +12,6 @@ namespace FootballBooking_BE.Services.Interfaces
         Task<ApiResponse<bool>> StaffCancelBookingAsync(int staffId, int detailId, CancelBookingRequest request);
         Task<ApiResponse<bool>> BulkCancelByPitchAsync(int staffId, BulkCancelBookingRequest request);
         Task<ApiResponse<IEnumerable<AvailabilitySlot>>> GetAvailableSlotsAsync(int pitchId, DateOnly playDate);
+        Task<ApiResponse<Models.DTOs.Dashboard.DashboardStatsResponse>> GetDashboardStatsAsync(int userId, string role);
     }
 }

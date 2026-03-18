@@ -1,4 +1,4 @@
-﻿using FootballBooking_BE.Data.Entities;
+using FootballBooking_BE.Data.Entities;
 
 namespace FootballBooking_BE.Repositories.Interfaces
 {
@@ -35,5 +35,6 @@ namespace FootballBooking_BE.Repositories.Interfaces
         Task<List<BookingDetail>> GetPendingBookingDetailsForStaffAsync(int staffId);
         Task<BookingDetail?> GetBookingDetailByIdAsync(int detailId);
         Task<BookingDetail> UpdateBookingDetailAsync(BookingDetail detail);
+        Task<Booking> UpdateBookingAsync(Booking booking);
     }
 }

@@ -167,7 +167,53 @@ namespace FootballBooking_BE.Services.Implementations
             }
             return ApiResponse<BookingResponse>.Ok(MapToResponse(booking));
         }
-        public async Task<ApiResponse<bool>> CancelBookingAsync(int userId, int detailId, CancelBookingRequest request) { 
+        public async Task<ApiResponse<bool>> CancelBookingAsync(int userId, int detailId, CancelBookingRequest request)
+        {
+            var detail = await _bookingRepository.GetBookingDetailByIdAsync(detailId);
+            if (detail == null || detail.Booking.UserId != userId)
+            {
+                return ApiResponse<bool>.Fail("Không tìm thấy thông tin đặt sân hoặc bạn không có quyền hủy.");
+            }
+
+            if (detail.DetailStatus.Equals(BookingStatus.Cancelled, StringComparison.OrdinalIgnoreCase) || 
+                detail.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase) ||
+                detail.DetailStatus.Equals(BookingStatus.Rejected, StringComparison.OrdinalIgnoreCase))
+            {
+                return ApiResponse<bool>.Fail("Không thể hủy booking ở trạng thái này.");
+            }
+
+            // 6-hour notice check
+            var bookingDate = detail.PlayDate.ToDateTime(new TimeOnly(detail.StartTime.Ticks));
+            if ((bookingDate - DateTime.Now).TotalHours < 6)
+            {
+                return ApiResponse<bool>.Fail("Chỉ có thể hủy lịch trước giờ đá tối thiểu 6 tiếng.");
+            }
+
+            string oldStatus = detail.DetailStatus;
+            detail.DetailStatus = BookingStatus.Cancelled;
+            detail.CancellationReason = request.Reason;
+
+            await _bookingRepository.AddStatusHistoryAsync(new BookingStatusHistory
+            {
+                BookingDetailId = detail.DetailId,
+                OldStatus = oldStatus,
+                NewStatus = BookingStatus.Cancelled,
+                ChangedBy = userId,
+                ChangedAt = DateTime.UtcNow
+            });
+
+            await _bookingRepository.UpdateBookingAsync(detail.Booking); // Sync changes to detail and history through navigation or repo update
+
+            // Sync parent Booking status if all details are cancelled or rejected
+            var booking = await _bookingRepository.GetBookingByIdAsync(detail.BookingId);
+            if (booking != null && booking.BookingDetails.All(d => 
+                d.DetailStatus.Equals(BookingStatus.Cancelled, StringComparison.OrdinalIgnoreCase) || 
+                d.DetailStatus.Equals(BookingStatus.Rejected, StringComparison.OrdinalIgnoreCase)))
+            {
+                booking.Status = BookingStatus.Cancelled;
+                await _bookingRepository.UpdateBookingAsync(booking);
+            }
+
             return ApiResponse<bool>.Ok(true);
         }
 
@@ -263,6 +309,58 @@ namespace FootballBooking_BE.Services.Implementations
             return ApiResponse<bool>.Ok(true);
         }
 
+        public async Task<ApiResponse<Models.DTOs.Dashboard.DashboardStatsResponse>> GetDashboardStatsAsync(int userId, string role)
+        {
+            var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
+            
+            // Filter details based on user role
+            var userDetails = role.Equals(UserRole.Customer, StringComparison.OrdinalIgnoreCase) 
+                ? allDetails.Where(d => d.Booking.UserId == userId) 
+                : allDetails;
+
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            var now = DateTime.Now.TimeOfDay;
+
+            var stats = new Models.DTOs.Dashboard.DashboardStatsResponse
+            {
+                // Total bookings = Count all regardless of status
+                TotalBookingsCount = userDetails.Count(),
+                
+                // Upcoming Confirmed = CONFIRMED and in the future
+                UpcomingConfirmedCount = userDetails.Count(d => 
+                    d.Booking.Status.Equals(BookingStatus.Confirmed, StringComparison.OrdinalIgnoreCase) && 
+                    (d.PlayDate > today || (d.PlayDate == today && d.StartTime > now))),
+                
+                CompletedBookingsCount = userDetails.Count(d => 
+                    d.Booking.Status.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase)),
+                
+                RejectedBookingsCount = userDetails.Count(d => 
+                    d.Booking.Status.Equals(BookingStatus.Rejected, StringComparison.OrdinalIgnoreCase) ||
+                    d.Booking.Status.Equals(BookingStatus.Cancelled, StringComparison.OrdinalIgnoreCase)),
+                
+                UpcomingBookings = userDetails
+                    .Where(d => d.Booking.Status.Equals(BookingStatus.Confirmed, StringComparison.OrdinalIgnoreCase) && 
+                                (d.PlayDate > today || (d.PlayDate == today && d.StartTime > now)))
+                    .OrderBy(d => d.PlayDate)
+                    .ThenBy(d => d.StartTime)
+                    .Take(10)
+                    .Select(d => new Models.DTOs.Dashboard.UpcomingBookingDto
+                    {
+                        DetailId = d.DetailId,
+                        PitchName = d.Pitch?.PitchName ?? "N/A",
+                        PlayDate = d.PlayDate,
+                        StartTime = d.StartTime,
+                        EndTime = d.EndTime,
+                        Price = d.PriceAtBooking,
+                        Status = d.Booking.Status,
+                        CustomerName = d.Booking.User?.FullName
+                    })
+                    .ToList()
+            };
+
+            return ApiResponse<Models.DTOs.Dashboard.DashboardStatsResponse>.Ok(stats);
+        }
+
         private BookingResponse MapToResponse(Booking b)
         {
             return new BookingResponse
@@ -284,7 +382,8 @@ namespace FootballBooking_BE.Services.Implementations
                     EndTime = d.EndTime,
                     DurationMinutes = d.DurationMinutes,
                     PriceAtBooking = d.PriceAtBooking,
-                    Status = d.DetailStatus
+                    Status = b.Status, // Use parent Booking status for consistency
+                    CancellationReason = d.CancellationReason
                 }).ToList()
             };
         }
