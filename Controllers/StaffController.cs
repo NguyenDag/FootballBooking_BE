@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using FootballBooking_BE.Common;
 using FootballBooking_BE.Models.DTOs.Staff;
 using FootballBooking_BE.Services.Interfaces;
@@ -81,10 +81,6 @@ namespace FootballBooking_BE.Controllers
             return Ok(ApiResponse<object>.Ok(null!, "Đã xác nhận booking thành công."));
         }
 
-        /// <summary>
-        /// POST /api/staff/bookings/{detailId}/reject
-        /// Từ chối một booking detail (phải đúng sân phân công)
-        /// </summary>
         [HttpPost("bookings/{detailId:int}/reject")]
         public async Task<ActionResult<ApiResponse<object>>> RejectBooking(
             int detailId,
@@ -92,6 +88,19 @@ namespace FootballBooking_BE.Controllers
         {
             await _staffService.RejectBookingDetailAsync(GetCurrentUserId(), detailId, request);
             return Ok(ApiResponse<object>.Ok(null!, "Đã từ chối booking."));
+        }
+
+        /// <summary>
+        /// GET /api/staff/pitches/{pitchId}/schedule?date=...
+        /// Lịch sân theo ngày
+        /// </summary>
+        [HttpGet("pitches/{pitchId:int}/schedule")]
+        public async Task<ActionResult<ApiResponse<List<PitchScheduleSlotResponse>>>> GetPitchSchedule(
+            int pitchId,
+            [FromQuery] DateOnly date)
+        {
+            var result = await _staffService.GetPitchScheduleAsync(GetCurrentUserId(), pitchId, date);
+            return Ok(ApiResponse<List<PitchScheduleSlotResponse>>.Ok(result));
         }
 
         // ─── HELPER ───────────────────────────────────────────────

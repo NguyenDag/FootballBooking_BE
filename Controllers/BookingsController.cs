@@ -36,6 +36,22 @@ namespace FootballBooking_BE.Controllers
             return Ok(result);
         }
 
+        [HttpGet("history")]
+        public async Task<ActionResult<ApiResponse<IEnumerable<BookingResponse>>>> GetBookingHistory()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var result = await _bookingService.GetBookingHistoryAsync(userId);
+            return Ok(result);
+        }
+
+        [HttpGet("upcoming")]
+        public async Task<ActionResult<ApiResponse<IEnumerable<BookingResponse>>>> GetUpcomingBookings()
+        {
+            var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var result = await _bookingService.GetUpcomingBookingsAsync(userId);
+            return Ok(result);
+        }
+
         [HttpGet("{id}")]
         public async Task<ActionResult<ApiResponse<BookingResponse>>> GetBookingById(int id)
         {

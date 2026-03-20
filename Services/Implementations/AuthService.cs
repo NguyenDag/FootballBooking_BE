@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using FootballBooking_BE.Common;
 using FootballBooking_BE.Data.Entities;
 using FootballBooking_BE.Models.DTOs.Auth;
@@ -56,7 +56,8 @@ namespace FootballBooking_BE.Services.Implementations
 
         public async Task<AuthResponse> LoginAsync(Models.DTOs.Auth.LoginRequest request, string ipAddress)
         {
-            var user = await _authRepo.GetByEmailAsync(request.Email)
+            var normalizedEmail = request.Email.ToLower().Trim();
+            var user = await _authRepo.GetByEmailAsync(normalizedEmail)
                 ?? throw new UnauthorizedAccessException("Email hoặc mật khẩu không đúng.");
 
             if (!user.IsActive)
@@ -75,6 +76,11 @@ namespace FootballBooking_BE.Services.Implementations
             var principal = _jwtService.GetPrincipalFromExpiredToken(request.AccessToken)
                 ?? throw new UnauthorizedAccessException("Access token không hợp lệ.");
 
+            var userIdClaim = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)
+                           ?? principal.FindFirst("userId");
+            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int accessTokenUserId))
+                throw new UnauthorizedAccessException("Access token không hợp lệ.");
+
             var storedToken = await _authRepo.GetRefreshTokenAsync(request.RefreshToken)
                 ?? throw new UnauthorizedAccessException("Refresh token không tồn tại.");
 
@@ -82,6 +88,10 @@ namespace FootballBooking_BE.Services.Implementations
                 throw new UnauthorizedAccessException("Refresh token đã hết hạn hoặc bị thu hồi.");
 
             var user = storedToken.User;
+
+            // Security Check: UserId from AccessToken MUST match UserId from RefreshToken
+            if (user.UserId != accessTokenUserId)
+                throw new UnauthorizedAccessException("Token không khớp. Truy cập bị từ chối.");
 
             if (!user.IsActive)
                 throw new UnauthorizedAccessException("Tài khoản đã bị khoá.");
@@ -168,7 +178,7 @@ namespace FootballBooking_BE.Services.Implementations
             // Không tiết lộ email có tồn tại hay không (security best practice)
             if (user == null) return;
 
-            var resetToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+            var resetToken = new Random().Next(100000, 999999).ToString();
             var expiry = DateTime.UtcNow.AddMinutes(15); // Token có hiệu lực 15 phút
 
             await _authRepo.SavePasswordResetTokenAsync(user.UserId, resetToken, expiry);

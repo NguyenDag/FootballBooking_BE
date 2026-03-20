@@ -158,6 +158,39 @@ namespace FootballBooking_BE.Services.Implementations
             return ApiResponse<IEnumerable<BookingResponse>>.Ok(bookings.Select(MapToResponse));
         }
 
+        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetBookingHistoryAsync(int userId)
+        {
+            var bookings = await _bookingRepository.GetBookingsByUserIdAsync(userId);
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            var now = DateTime.Now.TimeOfDay;
+
+            var historyBookings = bookings.Where(b => 
+                b.Status.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase) ||
+                b.Status.Equals(BookingStatus.Cancelled, StringComparison.OrdinalIgnoreCase) ||
+                b.Status.Equals(BookingStatus.Rejected, StringComparison.OrdinalIgnoreCase) ||
+                // Check if ALL details are in the past
+                b.BookingDetails.All(d => d.PlayDate < today || (d.PlayDate == today && d.StartTime < now))
+            );
+
+            return ApiResponse<IEnumerable<BookingResponse>>.Ok(historyBookings.Select(MapToResponse));
+        }
+
+        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetUpcomingBookingsAsync(int userId)
+        {
+            var bookings = await _bookingRepository.GetBookingsByUserIdAsync(userId);
+            var today = DateOnly.FromDateTime(DateTime.Now);
+            var now = DateTime.Now.TimeOfDay;
+
+            var upcomingBookings = bookings.Where(b => 
+                (b.Status.Equals(BookingStatus.Pending, StringComparison.OrdinalIgnoreCase) ||
+                 b.Status.Equals(BookingStatus.Confirmed, StringComparison.OrdinalIgnoreCase)) &&
+                // Check if ANY detail is in the future
+                b.BookingDetails.Any(d => d.PlayDate > today || (d.PlayDate == today && d.StartTime >= now))
+            );
+
+            return ApiResponse<IEnumerable<BookingResponse>>.Ok(upcomingBookings.Select(MapToResponse));
+        }
+
         public async Task<ApiResponse<BookingResponse>> GetBookingByIdAsync(int userId, int bookingId)
         {
             var booking = await _bookingRepository.GetBookingByIdAsync(bookingId);
@@ -359,6 +392,69 @@ namespace FootballBooking_BE.Services.Implementations
             };
 
             return ApiResponse<Models.DTOs.Dashboard.DashboardStatsResponse>.Ok(stats);
+        }
+
+        public async Task<ApiResponse<Models.DTOs.Dashboard.AdminAdvancedStatsResponse>> GetAdminAdvancedStatsAsync(DateOnly fromDate, DateOnly toDate)
+        {
+            var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
+
+            // Lọc theo khoảng thời gian PlayDate
+            var periodDetails = allDetails.Where(d => 
+                d.PlayDate >= fromDate && d.PlayDate <= toDate).ToList();
+
+            var totalBookings = periodDetails.Count;
+
+            // Tính Revenue: Chỉ tính các BookingDetail có trạng thái COMPLETED
+            // (Tuỳ requirement có thể tính cả CONFIRMED, ở đây ví dụ lấy COMPLETED hoặc Status cha là PAID)
+            var revenueDetails = periodDetails.Where(d => 
+                d.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase) ||
+                (d.Booking != null && d.Booking.PaymentStatus.Equals("PAID", StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+
+            decimal totalRevenue = revenueDetails.Sum(d => d.PriceAtBooking);
+
+            // Tỉ lệ huỷ / từ chối
+            var cancelledOrRejectedCount = periodDetails.Count(d => 
+                d.DetailStatus.Equals(BookingStatus.Cancelled, StringComparison.OrdinalIgnoreCase) ||
+                d.DetailStatus.Equals(BookingStatus.Rejected, StringComparison.OrdinalIgnoreCase));
+
+            double cancellationRate = totalBookings > 0 
+                ? Math.Round((double)cancelledOrRejectedCount / totalBookings * 100, 2) 
+                : 0;
+
+            // Nhóm theo ngày (BookingsByDate)
+            var bookingsGroupedByDate = periodDetails
+                .GroupBy(d => d.PlayDate)
+                .Select(g => new Models.DTOs.Dashboard.BookingsByDateDto
+                {
+                    DateLabel = g.Key.ToString("yyyy-MM-dd"),
+                    BookingsCount = g.Count()
+                })
+                .OrderBy(x => x.DateLabel)
+                .ToList();
+
+            // Nhóm doanh thu theo sân (RevenueByPitch)
+            var revenueGroupedByPitch = revenueDetails
+                .GroupBy(d => new { d.PitchId, PitchName = d.Pitch?.PitchName ?? "Unknown" })
+                .Select(g => new Models.DTOs.Dashboard.RevenueByPitchDto
+                {
+                    PitchId = g.Key.PitchId,
+                    PitchName = g.Key.PitchName,
+                    TotalRevenue = g.Sum(d => d.PriceAtBooking)
+                })
+                .OrderByDescending(x => x.TotalRevenue)
+                .ToList();
+
+            var response = new Models.DTOs.Dashboard.AdminAdvancedStatsResponse
+            {
+                TotalBookings = totalBookings,
+                TotalRevenue = totalRevenue,
+                CancellationRate = cancellationRate,
+                BookingsByDate = bookingsGroupedByDate,
+                RevenueByPitch = revenueGroupedByPitch
+            };
+
+            return ApiResponse<Models.DTOs.Dashboard.AdminAdvancedStatsResponse>.Ok(response);
         }
 
         private BookingResponse MapToResponse(Booking b)

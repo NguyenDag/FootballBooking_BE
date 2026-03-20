@@ -28,6 +28,17 @@ namespace FootballBooking_BE.Controllers
             return Ok(result);
         }
 
+        [HttpGet("admin-stats")]
+        [Authorize(Policy = "AdminOnly")]
+        public async Task<ActionResult<ApiResponse<AdminAdvancedStatsResponse>>> GetAdminStats([FromQuery] DateOnly? fromDate, [FromQuery] DateOnly? toDate)
+        {
+            var from = fromDate ?? DateOnly.FromDateTime(DateTime.Now.AddDays(-30));
+            var to = toDate ?? DateOnly.FromDateTime(DateTime.Now);
+
+            var result = await _bookingService.GetAdminAdvancedStatsAsync(from, to);
+            return Ok(result);
+        }
+
         private int GetCurrentUserId()
         {
             var claim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("userId");

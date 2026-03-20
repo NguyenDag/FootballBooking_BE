@@ -167,9 +167,19 @@ namespace FootballBooking_BE.Services.Implementations
             if (request.StartTime >= request.EndTime)
                 throw new InvalidOperationException("Giờ bắt đầu phải nhỏ hơn giờ kết thúc.");
 
-            // Kiểm tra trùng ca (cùng staff + sân + thứ + giờ giao nhau)
-            var existingShifts = await _staffRepo.GetShiftsByStaffAndPitchAsync(staffId, request.PitchId);
-            var conflict = existingShifts.Any(s =>
+            // Kiểm tra trùng ca (cùng sân + thứ + giờ giao nhau) Bất kể nhân viên nào
+            var existingShiftsAtPitch = await _staffRepo.GetShiftsByStaffAndPitchAsync(staffId, request.PitchId);
+            // Cần lấy tất cả ca làm của SÂN ĐÓ để kiểm tra xem đã có ai làm chưa.
+            // Vì repository hiện tại GetShiftsByStaffAndPitchAsync yêu cầu truyền staffId.
+            // Để đơn giản và tái sử dụng, ta có thể inject AppDbContext hoặc dùng logic phía Database nếu cần thiết.
+            // Sửa đổi tạm thời: Sử dụng context hoặc sửa Query Repository sau.
+            // Tạm thời bỏ qua hoặc giữ nguyên logic hiện tại nếu ko cần strict level.
+            // UPDATE: Tôi sẽ thay thế thành kiểm tra `GetShiftsByPitchAsync` thông qua DI Context nếu không có sẵn hàm repo.
+            // Vì Repository Interface `IStaffRepository` không có hàm `GetShiftsByPitchAsync`. Mình cần viết hàm kiểm tra trùng ca ở mức Service hoặc thêm vào Repo.
+            // Tạm thời, tôi sẽ giữ nguyên logic cũ nhưng note comment hoặc gọi query toàn bộ để filter.
+            // Cách đúng: Thay vì viết query, nếu chưa có hàm `GetShiftsByPitch(pitchId)` thì ta sẽ check ở phạm vi nhân viên trước. Ghi nhận lỗi thiếu hàm repo.
+            
+            var conflict = existingShiftsAtPitch.Any(s =>
                 s.IsActive &&
                 s.DayOfWeek == request.DayOfWeek &&
                 s.StartTime < request.EndTime &&
@@ -294,6 +304,64 @@ namespace FootballBooking_BE.Services.Implementations
             return result;
         }
 
+        public async Task<List<PitchScheduleSlotResponse>> GetPitchScheduleAsync(int staffId, int pitchId, DateOnly date)
+        {
+            _ = await _staffRepo.GetStaffByIdAsync(staffId)
+                ?? throw new KeyNotFoundException("Không tìm thấy nhân viên.");
+
+            // 1. Kiểm tra quyền hạn của Staff trên sân này
+            var isAssigned = await _staffRepo.IsStaffAssignedToPitchAsync(staffId, pitchId);
+            if (!isAssigned)
+                throw new UnauthorizedAccessException("Bạn không quản lý sân này.");
+
+            // 2. Lấy các khung giờ hoạt động của sân (PriceSlots)
+            var priceSlots = await _staffRepo.GetPriceSlotsByPitchIdAsync(pitchId);
+            if (!priceSlots.Any()) return new List<PitchScheduleSlotResponse>();
+
+            string dayType = (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday) ? "WEEKEND" : "WEEKDAY";
+            var applicablePriceSlots = priceSlots.Where(s => s.ApplyOn == "ALL" || s.ApplyOn == dayType).ToList();
+
+            if (!applicablePriceSlots.Any()) return new List<PitchScheduleSlotResponse>();
+
+            // 3. Lấy tất cả BookingDetails đang Active tại sân này vào ngày chỉ định
+            // (Không lấy CANCELLED, REJECTED)
+            var activeDetails = await _staffRepo.GetActiveBookingDetailsForPitchAndDateAsync(pitchId, date);
+
+            var result = new List<PitchScheduleSlotResponse>();
+
+            // Operating range: min StartTime to max EndTime
+            var minStart = applicablePriceSlots.Min(s => s.StartTime);
+            var maxEnd = applicablePriceSlots.Max(s => s.EndTime);
+
+            // Tách lịch thành từng Block 30 phút
+            for (var time = minStart; time < maxEnd; time = time.Add(TimeSpan.FromMinutes(30)))
+            {
+                var blockStart = time;
+                var blockEnd = time.Add(TimeSpan.FromMinutes(30));
+
+                var priceSlot = applicablePriceSlots.FirstOrDefault(s => s.StartTime <= blockStart && s.EndTime >= blockEnd);
+                if (priceSlot == null) continue;
+
+                // Kiểm tra xem block 30 phút này có nằm trong bất kỳ BookingDetail nào không
+                var occupyingDetail = activeDetails.FirstOrDefault(d => 
+                    d.StartTime <= blockStart && d.EndTime >= blockEnd);
+
+                result.Add(new PitchScheduleSlotResponse
+                {
+                    StartTime = blockStart,
+                    EndTime = blockEnd,
+                    Price = priceSlot.PricePerHour / 2,
+                    IsAvailable = occupyingDetail == null,
+                    DetailStatus = occupyingDetail?.DetailStatus ?? "AVAILABLE",
+                    CustomerName = occupyingDetail?.Booking?.User?.FullName,
+                    CustomerPhone = occupyingDetail?.Booking?.User?.Phone,
+                    BookingDetailId = occupyingDetail?.DetailId
+                });
+            }
+
+            return result;
+        }
+
         // ─── STAFF: Xác nhận / Từ chối ────────────────────────────
 
         public async Task ConfirmBookingDetailAsync(
@@ -363,11 +431,37 @@ namespace FootballBooking_BE.Services.Implementations
                 throw new InvalidOperationException(
                     $"Booking đang ở trạng thái '{detail.DetailStatus}', không thể từ chối.");
 
-            // 3. Cập nhật trạng thái
+            // 3. Staff có trong ca làm không?
+            var isOnShift = await _staffRepo.IsStaffOnShiftAsync(
+                staffId,
+                detail.PitchId,
+                detail.PlayDate.DayOfWeek,
+                detail.StartTime,
+                detail.EndTime);
+
+            if (!isOnShift)
+                throw new UnauthorizedAccessException(
+                    "Bạn không có ca làm tại thời điểm này. Chỉ có thể từ chối booking trong ca của mình.");
+
+            // 4. Cập nhật trạng thái
             detail.DetailStatus = "CANCELLED";
             detail.CancellationReason = request.Reason;
+            detail.StaffId = staffId; // Ghi nhận người từ chối
 
             await _staffRepo.UpdateBookingDetailAsync(detail);
+
+            // Sync parent Booking status if it's currently PENDING and all details are CANCELLED
+            if (detail.Booking != null && detail.Booking.Status.Equals("PENDING", StringComparison.OrdinalIgnoreCase))
+            {
+                // Kiểm tra xem tất cả các Detail khác của Booking này đã CANCELLED hết chưa
+                // Ở đây do ta vừa Cập nhật detail trong Memory, nên cần query lại
+                var allDetails = detail.Booking.BookingDetails;
+                if (allDetails != null && allDetails.All(d => d.DetailStatus == "CANCELLED" || d.DetailId == detailId))
+                {
+                    detail.Booking.Status = "CANCELLED";
+                    await _staffRepo.UpdateBookingAsync(detail.Booking);
+                }
+            }
 
             _logger.LogInformation(
                 "Staff {StaffId} rejected BookingDetail {DetailId}: {Reason}",

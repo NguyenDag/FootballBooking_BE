@@ -7,11 +7,14 @@ namespace FootballBooking_BE.Services.Interfaces
     {
         Task<ApiResponse<BookingResponse>> CreateBookingAsync(int userId, BookingCreateRequest request);
         Task<ApiResponse<IEnumerable<BookingResponse>>> GetMyBookingsAsync(int userId);
+        Task<ApiResponse<IEnumerable<BookingResponse>>> GetBookingHistoryAsync(int userId);
+        Task<ApiResponse<IEnumerable<BookingResponse>>> GetUpcomingBookingsAsync(int userId);
         Task<ApiResponse<BookingResponse>> GetBookingByIdAsync(int userId, int bookingId);
         Task<ApiResponse<bool>> CancelBookingAsync(int userId, int detailId, CancelBookingRequest request);
         Task<ApiResponse<bool>> StaffCancelBookingAsync(int staffId, int detailId, CancelBookingRequest request);
         Task<ApiResponse<bool>> BulkCancelByPitchAsync(int staffId, BulkCancelBookingRequest request);
         Task<ApiResponse<IEnumerable<AvailabilitySlot>>> GetAvailableSlotsAsync(int pitchId, DateOnly playDate);
         Task<ApiResponse<Models.DTOs.Dashboard.DashboardStatsResponse>> GetDashboardStatsAsync(int userId, string role);
+        Task<ApiResponse<Models.DTOs.Dashboard.AdminAdvancedStatsResponse>> GetAdminAdvancedStatsAsync(DateOnly fromDate, DateOnly toDate);
     }
 }

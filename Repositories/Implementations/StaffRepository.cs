@@ -197,5 +197,29 @@ namespace FootballBooking_BE.Repositories.Implementations
             await _context.SaveChangesAsync();
             return booking;
         }
+
+        // ─── PITCH & BOOKING (hỗ trợ GetPitchScheduleAsync) ────────
+        
+        public async Task<List<PriceSlot>> GetPriceSlotsByPitchIdAsync(int pitchId)
+        {
+            return await _context.PriceSlots
+                .Where(ps => ps.PitchId == pitchId)
+                .OrderBy(ps => ps.StartTime)
+                .ToListAsync();
+        }
+
+        public async Task<List<BookingDetail>> GetActiveBookingDetailsForPitchAndDateAsync(int pitchId, DateOnly date)
+        {
+            return await _context.BookingDetails
+                .Include(d => d.Booking)
+                    .ThenInclude(b => b.User)
+                .Where(d => 
+                    d.PitchId == pitchId &&
+                    d.PlayDate == date &&
+                    d.DetailStatus != "CANCELLED" &&
+                    d.DetailStatus != "REJECTED")
+                .OrderBy(d => d.StartTime)
+                .ToListAsync();
+        }
     }
 }

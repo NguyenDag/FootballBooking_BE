@@ -22,4 +22,27 @@ namespace FootballBooking_BE.Models.DTOs.Dashboard
         public string Status { get; set; } = null!;
         public string? CustomerName { get; set; } // Useful for Admin/Staff
     }
+
+    public class AdminAdvancedStatsResponse
+    {
+        public int TotalBookings { get; set; }
+        public decimal TotalRevenue { get; set; }
+        public double CancellationRate { get; set; } // percentage
+        
+        public List<BookingsByDateDto> BookingsByDate { get; set; } = new();
+        public List<RevenueByPitchDto> RevenueByPitch { get; set; } = new();
+    }
+
+    public class BookingsByDateDto
+    {
+        public string DateLabel { get; set; } = null!;
+        public int BookingsCount { get; set; }
+    }
+
+    public class RevenueByPitchDto
+    {
+        public int PitchId { get; set; }
+        public string PitchName { get; set; } = null!;
+        public decimal TotalRevenue { get; set; }
+    }
 }

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace FootballBooking_BE.Models.DTOs.Staff
 {
@@ -158,5 +158,17 @@ namespace FootballBooking_BE.Models.DTOs.Staff
 
         /// <summary>Staff có trong ca làm không (để FE hiển thị cảnh báo)</summary>
         public bool IsWithinShift { get; set; }
+    }
+
+    public class PitchScheduleSlotResponse
+    {
+        public TimeSpan StartTime { get; set; }
+        public TimeSpan EndTime { get; set; }
+        public bool IsAvailable { get; set; }
+        public decimal Price { get; set; }
+        public string? DetailStatus { get; set; }
+        public string? CustomerName { get; set; }
+        public string? CustomerPhone { get; set; }
+        public int? BookingDetailId { get; set; }
     }
 }

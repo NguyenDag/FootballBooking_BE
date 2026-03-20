@@ -36,5 +36,9 @@ namespace FootballBooking_BE.Repositories.Interfaces
         Task<BookingDetail?> GetBookingDetailByIdAsync(int detailId);
         Task<BookingDetail> UpdateBookingDetailAsync(BookingDetail detail);
         Task<Booking> UpdateBookingAsync(Booking booking);
+
+        // ─── PITCH & BOOKING (hỗ trợ GetPitchScheduleAsync) ────────
+        Task<List<PriceSlot>> GetPriceSlotsByPitchIdAsync(int pitchId);
+        Task<List<BookingDetail>> GetActiveBookingDetailsForPitchAndDateAsync(int pitchId, DateOnly date);
     }
 }

@@ -1,4 +1,4 @@
-﻿using FootballBooking_BE.Models.DTOs.Staff;
+using FootballBooking_BE.Models.DTOs.Staff;
 
 namespace FootballBooking_BE.Services.Interfaces
 {
@@ -25,6 +25,7 @@ namespace FootballBooking_BE.Services.Interfaces
         // ─── STAFF: Tự xem thông tin ──────────────────────────────
         Task<StaffResponse> GetMyProfileAsync(int staffId);
         Task<List<PendingBookingDetailResponse>> GetPendingBookingsAsync(int staffId);
+        Task<List<PitchScheduleSlotResponse>> GetPitchScheduleAsync(int staffId, int pitchId, DateOnly date);
 
         // ─── STAFF: Xác nhận / từ chối booking ───────────────────
         Task ConfirmBookingDetailAsync(int staffId, int detailId, ConfirmBookingDetailRequest request);
