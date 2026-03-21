@@ -34,6 +34,7 @@ namespace FootballBooking_BE.Services.Implementations
                 PitchType = request.PitchType,
                 Status = request.Status,
                 Description = request.Description,
+                ImageUrl = request.ImageUrl,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -51,6 +52,7 @@ namespace FootballBooking_BE.Services.Implementations
             if (!string.IsNullOrEmpty(request.PitchType)) pitch.PitchType = request.PitchType;
             if (!string.IsNullOrEmpty(request.Status)) pitch.Status = request.Status;
             if (request.Description != null) pitch.Description = request.Description;
+            if (request.ImageUrl != null) pitch.ImageUrl = request.ImageUrl;
 
             await _pitchRepo.UpdatePitchAsync(pitch);
             return true;
@@ -73,6 +75,7 @@ namespace FootballBooking_BE.Services.Implementations
                 PitchType = pitch.PitchType,
                 Status = pitch.Status ?? "ACTIVE",
                 Description = pitch.Description,
+                ImageUrl = pitch.ImageUrl,
                 CreatedAt = pitch.CreatedAt,
                 PriceSlots = pitch.PriceSlots.Select(s => new PriceSlotDTO
                 {

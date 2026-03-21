@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace FootballBooking_BE.Data.Entities
@@ -22,6 +22,7 @@ namespace FootballBooking_BE.Data.Entities
         public string Status { get; set; } = "ACTIVE"; // ACTIVE | MAINTENANCE | INACTIVE
 
         public string? Description { get; set; }
+        public string? ImageUrl { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

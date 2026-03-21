@@ -1,4 +1,4 @@
-﻿using FootballBooking_BE.Data.Entities;
+using FootballBooking_BE.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace FootballBooking_BE.Data
@@ -41,6 +41,15 @@ namespace FootballBooking_BE.Data
 
                 e.HasCheckConstraint("CK_Users_Role",
                     "[Role] IN ('ADMIN', 'STAFF', 'CUSTOMER')");
+
+                // Seed data
+                e.HasData(
+                    new User { UserId = 1, FullName = "Admin Quản Trị", Email = "admin@football.com", Password = "$2a$11$IcrPPnD8wX2UaRxXKadYfOUAo7t7snZV914CKUKx40QdEgO30H68W", Role = "ADMIN", Phone = "0901111111", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new User { UserId = 2, FullName = "Nguyễn Văn A (Nhân viên 1)", Email = "staff1@football.com", Password = "$2a$11$IcrPPnD8wX2UaRxXKadYfOUAo7t7snZV914CKUKx40QdEgO30H68W", Role = "STAFF", Phone = "0902222222", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new User { UserId = 3, FullName = "Trần Thị B (Nhân viên 2)", Email = "staff2@football.com", Password = "$2a$11$IcrPPnD8wX2UaRxXKadYfOUAo7t7snZV914CKUKx40QdEgO30H68W", Role = "STAFF", Phone = "0903333333", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new User { UserId = 4, FullName = "Lê Khách C", Email = "customer1@gmail.com", Password = "$2a$11$IcrPPnD8wX2UaRxXKadYfOUAo7t7snZV914CKUKx40QdEgO30H68W", Role = "CUSTOMER", Phone = "0904444444", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new User { UserId = 5, FullName = "Phạm Khách D", Email = "customer2@gmail.com", Password = "$2a$11$IcrPPnD8wX2UaRxXKadYfOUAo7t7snZV914CKUKx40QdEgO30H68W", Role = "CUSTOMER", Phone = "0905555555", IsActive = true, CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+                );
             });
 
             // ============================================================
@@ -53,6 +62,15 @@ namespace FootballBooking_BE.Data
 
                 e.HasCheckConstraint("CK_Pitches_Status",
                     "[Status] IN ('ACTIVE', 'MAINTENANCE', 'INACTIVE')");
+
+                // Seed data
+                e.HasData(
+                    new Pitch { PitchId = 1, PitchName = "Sân 5A (Cỏ mới)", PitchType = "5_PERSON", Status = "ACTIVE", Description = "Sân 5 người cỏ nhân tạo mới thay", CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new Pitch { PitchId = 2, PitchName = "Sân 5B (Có mái che)", PitchType = "5_PERSON", Status = "ACTIVE", Description = "Sân 5 người, đá không sợ mưa", CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new Pitch { PitchId = 3, PitchName = "Sân 7A (Tiêu chuẩn)", PitchType = "7_PERSON", Status = "ACTIVE", Description = "Sân 7 người kích thước chuẩn",  CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new Pitch { PitchId = 4, PitchName = "Sân 7B (Bảo trì)", PitchType = "7_PERSON", Status = "MAINTENANCE", Description = "Sân đang thay lưới và đèn", CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new Pitch { PitchId = 5, PitchName = "Sân 11 Lớn", PitchType = "11_PERSON", Status = "ACTIVE", Description = "Sân 11 người phục vụ giải đấu", CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+                );
             });
 
             // ============================================================
@@ -91,6 +109,39 @@ namespace FootballBooking_BE.Data
                  .WithMany(p => p.PriceSlots)
                  .HasForeignKey(ps => ps.PitchId)
                  .OnDelete(DeleteBehavior.Restrict);
+
+                // Seed data
+                e.HasData(
+                    // == SÂN 5A ==
+                    new PriceSlot { PriceSlotId = 1, PitchId = 1, PitchType = "5_PERSON", StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(16, 0, 0), PricePerHour = 200000, ApplyOn = "WEEKDAY", IsPeakHour = false },
+                    new PriceSlot { PriceSlotId = 2, PitchId = 1, PitchType = "5_PERSON", StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), PricePerHour = 350000, ApplyOn = "WEEKDAY", IsPeakHour = true },
+                    new PriceSlot { PriceSlotId = 3, PitchId = 1, PitchType = "5_PERSON", StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(16, 0, 0), PricePerHour = 250000, ApplyOn = "WEEKEND", IsPeakHour = false },
+                    new PriceSlot { PriceSlotId = 4, PitchId = 1, PitchType = "5_PERSON", StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), PricePerHour = 400000, ApplyOn = "WEEKEND", IsPeakHour = true },
+
+                    // == SÂN 5B ==
+                    new PriceSlot { PriceSlotId = 5, PitchId = 2, PitchType = "5_PERSON", StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(16, 0, 0), PricePerHour = 220000, ApplyOn = "WEEKDAY", IsPeakHour = false },
+                    new PriceSlot { PriceSlotId = 6, PitchId = 2, PitchType = "5_PERSON", StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), PricePerHour = 370000, ApplyOn = "WEEKDAY", IsPeakHour = true },
+                    new PriceSlot { PriceSlotId = 7, PitchId = 2, PitchType = "5_PERSON", StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(16, 0, 0), PricePerHour = 270000, ApplyOn = "WEEKEND", IsPeakHour = false },
+                    new PriceSlot { PriceSlotId = 8, PitchId = 2, PitchType = "5_PERSON", StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), PricePerHour = 420000, ApplyOn = "WEEKEND", IsPeakHour = true },
+
+                    // == SÂN 7A ==
+                    new PriceSlot { PriceSlotId = 9, PitchId = 3, PitchType = "7_PERSON", StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(16, 0, 0), PricePerHour = 400000, ApplyOn = "WEEKDAY", IsPeakHour = false },
+                    new PriceSlot { PriceSlotId = 10, PitchId = 3, PitchType = "7_PERSON", StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), PricePerHour = 600000, ApplyOn = "WEEKDAY", IsPeakHour = true },
+                    new PriceSlot { PriceSlotId = 11, PitchId = 3, PitchType = "7_PERSON", StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(16, 0, 0), PricePerHour = 450000, ApplyOn = "WEEKEND", IsPeakHour = false },
+                    new PriceSlot { PriceSlotId = 12, PitchId = 3, PitchType = "7_PERSON", StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), PricePerHour = 700000, ApplyOn = "WEEKEND", IsPeakHour = true },
+
+                    // == SÂN 7B ==
+                    new PriceSlot { PriceSlotId = 13, PitchId = 4, PitchType = "7_PERSON", StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(16, 0, 0), PricePerHour = 380000, ApplyOn = "WEEKDAY", IsPeakHour = false },
+                    new PriceSlot { PriceSlotId = 14, PitchId = 4, PitchType = "7_PERSON", StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), PricePerHour = 580000, ApplyOn = "WEEKDAY", IsPeakHour = true },
+                    new PriceSlot { PriceSlotId = 15, PitchId = 4, PitchType = "7_PERSON", StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(16, 0, 0), PricePerHour = 430000, ApplyOn = "WEEKEND", IsPeakHour = false },
+                    new PriceSlot { PriceSlotId = 16, PitchId = 4, PitchType = "7_PERSON", StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), PricePerHour = 680000, ApplyOn = "WEEKEND", IsPeakHour = true },
+
+                    // == SÂN 11 ==
+                    new PriceSlot { PriceSlotId = 17, PitchId = 5, PitchType = "11_PERSON", StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(16, 0, 0), PricePerHour = 800000, ApplyOn = "WEEKDAY", IsPeakHour = false },
+                    new PriceSlot { PriceSlotId = 18, PitchId = 5, PitchType = "11_PERSON", StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), PricePerHour = 1200000, ApplyOn = "WEEKDAY", IsPeakHour = true },
+                    new PriceSlot { PriceSlotId = 19, PitchId = 5, PitchType = "11_PERSON", StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(16, 0, 0), PricePerHour = 900000, ApplyOn = "WEEKEND", IsPeakHour = false },
+                    new PriceSlot { PriceSlotId = 20, PitchId = 5, PitchType = "11_PERSON", StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), PricePerHour = 1400000, ApplyOn = "WEEKEND", IsPeakHour = true }
+                );
             });
 
             // ============================================================
@@ -354,36 +405,45 @@ namespace FootballBooking_BE.Data
                     new RefundPolicy
                     {
                         PolicyId = 1,
-                        CancelBeforeHours = 48,
+                        CancelBeforeHours = 72,
                         RefundPercentage = 100.00m,
-                        Description = "Huỷ trước 48 giờ — hoàn 100%",
+                        Description = "Hủy trước 3 ngày (72h) - Hoàn 100%",
                         IsActive = true,
-                        CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)  // ← cố định
+                        CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                     },
                     new RefundPolicy
                     {
                         PolicyId = 2,
-                        CancelBeforeHours = 24,
-                        RefundPercentage = 70.00m,
-                        Description = "Huỷ trước 24 giờ — hoàn 70%",
+                        CancelBeforeHours = 48,
+                        RefundPercentage = 75.00m,
+                        Description = "Hủy trước 2 ngày (48h) - Hoàn 75%",
                         IsActive = true,
                         CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                     },
                     new RefundPolicy
                     {
                         PolicyId = 3,
-                        CancelBeforeHours = 12,
+                        CancelBeforeHours = 24,
                         RefundPercentage = 50.00m,
-                        Description = "Huỷ trước 12 giờ — hoàn 50%",
+                        Description = "Hủy trước 1 ngày (24h) - Hoàn 50%",
                         IsActive = true,
                         CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                     },
                     new RefundPolicy
                     {
                         PolicyId = 4,
+                        CancelBeforeHours = 12,
+                        RefundPercentage = 20.00m,
+                        Description = "Hủy trước 12 tiếng - Hoàn 20%",
+                        IsActive = true,
+                        CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                    },
+                    new RefundPolicy
+                    {
+                        PolicyId = 5,
                         CancelBeforeHours = 6,
                         RefundPercentage = 0.00m,
-                        Description = "Huỷ trong vòng 6 giờ — không hoàn tiền",
+                        Description = "Hủy sát giờ (dưới 6 tiếng) - Không hoàn tiền",
                         IsActive = true,
                         CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
                     }
@@ -410,6 +470,15 @@ namespace FootballBooking_BE.Data
                  .WithMany()
                  .HasForeignKey(s => s.PitchId)
                  .OnDelete(DeleteBehavior.Restrict);
+
+                // Seed data
+                e.HasData(
+                    new StaffShift { ShiftId = 1, StaffId = 2, PitchId = 1, DayOfWeek = 2, StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(14, 0, 0), CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new StaffShift { ShiftId = 2, StaffId = 2, PitchId = 2, DayOfWeek = 3, StartTime = new TimeSpan(14, 0, 0), EndTime = new TimeSpan(22, 0, 0), CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new StaffShift { ShiftId = 3, StaffId = 3, PitchId = 3, DayOfWeek = 4, StartTime = new TimeSpan(6, 0, 0), EndTime = new TimeSpan(14, 0, 0), CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new StaffShift { ShiftId = 4, StaffId = 3, PitchId = 5, DayOfWeek = 7, StartTime = new TimeSpan(16, 0, 0), EndTime = new TimeSpan(22, 0, 0), CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) },
+                    new StaffShift { ShiftId = 5, StaffId = 2, PitchId = 1, DayOfWeek = 1, StartTime = new TimeSpan(8, 0, 0), EndTime = new TimeSpan(16, 0, 0), CreatedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc) }
+                );
             });
         }
     }

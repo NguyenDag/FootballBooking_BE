@@ -9,6 +9,7 @@ namespace FootballBooking_BE.Models.DTOs
         public string PitchType { get; set; } = null!;
         public string Status { get; set; } = null!;
         public string? Description { get; set; }
+        public string? ImageUrl { get; set; }
         public DateTime CreatedAt { get; set; }
         public List<PriceSlotDTO> PriceSlots { get; set; } = new();
     }
@@ -37,6 +38,7 @@ namespace FootballBooking_BE.Models.DTOs
         public string Status { get; set; } = "ACTIVE";
 
         public string? Description { get; set; }
+        public string? ImageUrl { get; set; }
 
     }
 
@@ -72,5 +74,6 @@ namespace FootballBooking_BE.Models.DTOs
         public string? Status { get; set; }
 
         public string? Description { get; set; }
+        public string? ImageUrl { get; set; }
     }
 }

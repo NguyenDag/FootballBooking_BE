@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace FootballBooking_BE.Data.Entities
@@ -23,7 +23,7 @@ namespace FootballBooking_BE.Data.Entities
         public decimal PricePerHour { get; set; }
 
         [MaxLength(20)]
-        public string ApplyOn { get; set; } = "ALL"; // WEEKDAY | WEEKEND | ALL
+        public string ApplyOn { get; set; } = "WEEKDAY"; // WEEKDAY | WEEKEND
 
         public bool IsPeakHour { get; set; } = false;
 
