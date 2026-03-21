@@ -101,20 +101,26 @@ namespace FootballBooking_BE.Controllers
         }
 
         [HttpGet("staff/daily")]
-        [Authorize(Policy = "StaffOrAdmin")]
+        [Authorize(Roles = "ADMIN,STAFF")]
         public async Task<ActionResult<ApiResponse<IEnumerable<BookingResponse>>>> GetStaffDailyBookings([FromQuery] DateOnly? date)
         {
-            var staffId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdStr)) return Unauthorized(ApiResponse<object>.Fail("Không tìm thấy thông tin định danh."));
+            
+            var staffId = int.Parse(userIdStr);
             var targetDate = date ?? DateOnly.FromDateTime(DateTime.Now);
             var result = await _bookingService.GetStaffBookingsByDateAsync(staffId, targetDate);
             return Ok(result);
         }
 
         [HttpGet("staff/pending")]
-        [Authorize(Roles = "STAFF")]
+        [Authorize(Roles = "ADMIN,STAFF")]
         public async Task<IActionResult> GetStaffPendingBookings()
         {
-            var staffId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdStr)) return Unauthorized(ApiResponse<object>.Fail("Không tìm thấy thông tin định danh."));
+
+            var staffId = int.Parse(userIdStr);
             var result = await _bookingService.GetStaffPendingBookingsAsync(staffId);
             return Ok(result);
         }

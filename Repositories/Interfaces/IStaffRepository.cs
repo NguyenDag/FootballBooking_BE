@@ -21,6 +21,7 @@ namespace FootballBooking_BE.Repositories.Interfaces
         // ─── SHIFTS ───────────────────────────────────────────────
         Task<List<StaffShift>> GetShiftsByStaffIdAsync(int staffId);
         Task<List<StaffShift>> GetShiftsByStaffAndPitchAsync(int staffId, int pitchId);
+        Task<List<StaffShift>> GetShiftsByPitchAsync(int pitchId);
         Task<StaffShift?> GetShiftByIdAsync(int shiftId);
         Task<StaffShift> CreateShiftAsync(StaffShift shift);
         Task<StaffShift> UpdateShiftAsync(StaffShift shift);

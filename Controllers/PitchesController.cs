@@ -36,7 +36,7 @@ namespace FootballBooking_BE.Controllers
         }
 
         [HttpPost]
-        // [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Create([FromBody] CreatePitchRequest request)
         {
             if (!ModelState.IsValid)
@@ -49,7 +49,7 @@ namespace FootballBooking_BE.Controllers
         }
 
         [HttpPut("{id}")]
-        // [Authorize(Roles = "ADMIN,STAFF")]
+        [Authorize(Roles = "ADMIN,STAFF")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdatePitchRequest request)
         {
             var success = await _pitchService.UpdatePitchAsync(id, request);
@@ -61,7 +61,7 @@ namespace FootballBooking_BE.Controllers
         }
 
         [HttpDelete("{id}")]
-        // [Authorize(Roles = "ADMIN")]
+        [Authorize(Roles = "ADMIN")]
         public async Task<IActionResult> Delete(int id)
         {
             var success = await _pitchService.DeletePitchAsync(id);

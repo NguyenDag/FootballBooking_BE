@@ -167,27 +167,26 @@ namespace FootballBooking_BE.Services.Implementations
             if (request.StartTime >= request.EndTime)
                 throw new InvalidOperationException("Giờ bắt đầu phải nhỏ hơn giờ kết thúc.");
 
-            // Kiểm tra trùng ca (cùng sân + thứ + giờ giao nhau) Bất kể nhân viên nào
-            var existingShiftsAtPitch = await _staffRepo.GetShiftsByStaffAndPitchAsync(staffId, request.PitchId);
-            // Cần lấy tất cả ca làm của SÂN ĐÓ để kiểm tra xem đã có ai làm chưa.
-            // Vì repository hiện tại GetShiftsByStaffAndPitchAsync yêu cầu truyền staffId.
-            // Để đơn giản và tái sử dụng, ta có thể inject AppDbContext hoặc dùng logic phía Database nếu cần thiết.
-            // Sửa đổi tạm thời: Sử dụng context hoặc sửa Query Repository sau.
-            // Tạm thời bỏ qua hoặc giữ nguyên logic hiện tại nếu ko cần strict level.
-            // UPDATE: Tôi sẽ thay thế thành kiểm tra `GetShiftsByPitchAsync` thông qua DI Context nếu không có sẵn hàm repo.
-            // Vì Repository Interface `IStaffRepository` không có hàm `GetShiftsByPitchAsync`. Mình cần viết hàm kiểm tra trùng ca ở mức Service hoặc thêm vào Repo.
-            // Tạm thời, tôi sẽ giữ nguyên logic cũ nhưng note comment hoặc gọi query toàn bộ để filter.
-            // Cách đúng: Thay vì viết query, nếu chưa có hàm `GetShiftsByPitch(pitchId)` thì ta sẽ check ở phạm vi nhân viên trước. Ghi nhận lỗi thiếu hàm repo.
+            // Kiểm tra trùng ca (cùng sân + thứ + giờ giao nhau) - Bất kể nhân viên nào
+            var allShiftsAtPitch = await _staffRepo.GetShiftsByPitchAsync(request.PitchId);
             
-            var conflict = existingShiftsAtPitch.Any(s =>
+            var conflict = allShiftsAtPitch.Any(s =>
                 s.IsActive &&
                 s.DayOfWeek == request.DayOfWeek &&
                 s.StartTime < request.EndTime &&
                 s.EndTime > request.StartTime);
 
             if (conflict)
+            {
+                var conflictingShift = allShiftsAtPitch.First(s => 
+                    s.IsActive && 
+                    s.DayOfWeek == request.DayOfWeek && 
+                    s.StartTime < request.EndTime && 
+                    s.EndTime > request.StartTime);
+                
                 throw new InvalidOperationException(
-                    $"Ca làm bị trùng với ca đã tồn tại vào {DayNames[request.DayOfWeek]}.");
+                    $"Ca làm bị trùng với nhân viên {conflictingShift.Staff?.FullName} vào {DayNames[request.DayOfWeek]}.");
+            }
 
             var shift = new StaffShift
             {
@@ -216,9 +215,9 @@ namespace FootballBooking_BE.Services.Implementations
             if (request.StartTime >= request.EndTime)
                 throw new InvalidOperationException("Giờ bắt đầu phải nhỏ hơn giờ kết thúc.");
 
-            // Kiểm tra trùng ca (bỏ qua chính ca đang sửa)
-            var existingShifts = await _staffRepo.GetShiftsByStaffAndPitchAsync(staffId, shift.PitchId);
-            var conflict = existingShifts.Any(s =>
+            // Kiểm tra trùng ca (bỏ qua chính ca đang sửa) - Bất kể nhân viên nào
+            var allShiftsAtPitch = await _staffRepo.GetShiftsByPitchAsync(shift.PitchId);
+            var conflict = allShiftsAtPitch.Any(s =>
                 s.ShiftId != shiftId &&
                 s.IsActive &&
                 s.DayOfWeek == request.DayOfWeek &&
@@ -226,8 +225,17 @@ namespace FootballBooking_BE.Services.Implementations
                 s.EndTime > request.StartTime);
 
             if (conflict)
+            {
+                 var conflictingShift = allShiftsAtPitch.First(s => 
+                    s.ShiftId != shiftId &&
+                    s.IsActive && 
+                    s.DayOfWeek == request.DayOfWeek && 
+                    s.StartTime < request.EndTime && 
+                    s.EndTime > request.StartTime);
+
                 throw new InvalidOperationException(
-                    $"Ca làm bị trùng với ca đã tồn tại vào {DayNames[request.DayOfWeek]}.");
+                    $"Ca làm bị trùng với nhân viên {conflictingShift.Staff?.FullName} vào {DayNames[request.DayOfWeek]}.");
+            }
 
             shift.DayOfWeek = request.DayOfWeek;
             shift.StartTime = request.StartTime;

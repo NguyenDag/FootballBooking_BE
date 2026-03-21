@@ -105,6 +105,13 @@ namespace FootballBooking_BE.Repositories.Implementations
                 .OrderBy(s => s.DayOfWeek)
                 .ToListAsync();
 
+        public async Task<List<StaffShift>> GetShiftsByPitchAsync(int pitchId)
+            => await _context.StaffShifts
+                .Include(s => s.Staff)
+                .Where(s => s.PitchId == pitchId)
+                .OrderBy(s => s.DayOfWeek)
+                .ToListAsync();
+
         public async Task<StaffShift?> GetShiftByIdAsync(int shiftId)
             => await _context.StaffShifts
                 .Include(s => s.Staff)
