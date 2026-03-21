@@ -296,6 +296,49 @@ namespace FootballBooking_BE.Services.Implementations
             return ApiResponse<bool>.Ok(true);
         }
 
+        public async Task<ApiResponse<bool>> StaffConfirmBookingAsync(int staffId, int detailId)
+        {
+            var detail = await _bookingRepository.GetBookingDetailByIdAsync(detailId);
+            if (detail == null)
+            {
+                return ApiResponse<bool>.Fail("Không tìm thấy thông tin đặt sân.");
+            }
+
+            // Check if staff is assigned to this pitch
+            bool isAssigned = await _bookingRepository.IsStaffAssignedToPitchAsync(staffId, detail.PitchId);
+            if (!isAssigned)
+            {
+                return ApiResponse<bool>.Fail("Bạn không có quyền quản lý sân này.");
+            }
+
+            if (detail.DetailStatus != BookingStatus.Pending)
+            {
+                return ApiResponse<bool>.Fail("Chỉ có thể xác nhận booking ở trạng thái PENDING.");
+            }
+
+            string oldStatus = detail.DetailStatus;
+            detail.DetailStatus = BookingStatus.Confirmed;
+
+            await _bookingRepository.AddStatusHistoryAsync(new BookingStatusHistory
+            {
+                BookingDetailId = detail.DetailId,
+                OldStatus = oldStatus,
+                NewStatus = BookingStatus.Confirmed,
+                ChangedBy = staffId,
+                ChangedAt = DateTime.UtcNow
+            });
+
+            var booking = await _bookingRepository.GetBookingByIdAsync(detail.BookingId);
+            if (booking != null)
+            {
+                // If any detail is confirmed, parent booking becomes CONFIRMED
+                booking.Status = BookingStatus.Confirmed;
+                await _bookingRepository.UpdateBookingAsync(booking);
+            }
+
+            return ApiResponse<bool>.Ok(true);
+        }
+
         public async Task<ApiResponse<bool>> BulkCancelByPitchAsync(int staffId, BulkCancelBookingRequest request)
         {
             // Check if staff is assigned to this pitch
@@ -405,7 +448,6 @@ namespace FootballBooking_BE.Services.Implementations
             var totalBookings = periodDetails.Count;
 
             // Tính Revenue: Chỉ tính các BookingDetail có trạng thái COMPLETED
-            // (Tuỳ requirement có thể tính cả CONFIRMED, ở đây ví dụ lấy COMPLETED hoặc Status cha là PAID)
             var revenueDetails = periodDetails.Where(d => 
                 d.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase) ||
                 (d.Booking != null && d.Booking.PaymentStatus.Equals("PAID", StringComparison.OrdinalIgnoreCase))
@@ -445,16 +487,150 @@ namespace FootballBooking_BE.Services.Implementations
                 .OrderByDescending(x => x.TotalRevenue)
                 .ToList();
 
+            // Nhóm doanh thu theo tháng (Last 6 months)
+            var sixMonthsAgo = DateOnly.FromDateTime(DateTime.Now.AddMonths(-6));
+            var monthlyRevenue = allDetails
+                .Where(d => d.PlayDate >= sixMonthsAgo && 
+                            (d.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase) ||
+                             (d.Booking != null && d.Booking.PaymentStatus.Equals("PAID", StringComparison.OrdinalIgnoreCase))))
+                .GroupBy(d => new { d.PlayDate.Year, d.PlayDate.Month })
+                .Select(g => new Models.DTOs.Dashboard.MonthlyRevenueDto
+                {
+                    Month = $"T{g.Key.Month}/{g.Key.Year}",
+                    Revenue = g.Sum(d => d.PriceAtBooking),
+                    Bookings = g.Count()
+                })
+                .OrderBy(x => x.Month)
+                .ToList();
+
+            // Thống kê giờ cao điểm (PeakHours)
+            var peakHours = new List<Models.DTOs.Dashboard.PeakHourDto>();
+            string[] ranges = { "06:00-09:00", "09:00-12:00", "12:00-15:00", "15:00-18:00", "18:00-21:00", "21:00-24:00" };
+            
+            foreach (var range in ranges)
+            {
+                var times = range.Split('-');
+                var start = TimeSpan.Parse(times[0]);
+                var end = times[1] == "24:00" ? TimeSpan.FromHours(24) : TimeSpan.Parse(times[1]);
+
+                int count = periodDetails.Count(d => d.StartTime >= start && d.StartTime < end);
+                peakHours.Add(new Models.DTOs.Dashboard.PeakHourDto
+                {
+                    HourRange = range,
+                    BookingsCount = count
+                });
+            }
+
             var response = new Models.DTOs.Dashboard.AdminAdvancedStatsResponse
             {
                 TotalBookings = totalBookings,
                 TotalRevenue = totalRevenue,
                 CancellationRate = cancellationRate,
                 BookingsByDate = bookingsGroupedByDate,
-                RevenueByPitch = revenueGroupedByPitch
+                RevenueByPitch = revenueGroupedByPitch,
+                MonthlyRevenue = monthlyRevenue,
+                PeakHours = peakHours
             };
 
             return ApiResponse<Models.DTOs.Dashboard.AdminAdvancedStatsResponse>.Ok(response);
+        }
+
+        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetPitchBookingsByDateAsync(int pitchId, DateOnly date)
+        {
+            var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
+            var filteredDetails = allDetails.Where(d => 
+                d.PitchId == pitchId && 
+                d.PlayDate == date && 
+                !d.DetailStatus.Equals(BookingStatus.Cancelled, StringComparison.OrdinalIgnoreCase) &&
+                !d.DetailStatus.Equals(BookingStatus.Rejected, StringComparison.OrdinalIgnoreCase));
+
+            var bookings = filteredDetails
+                .GroupBy(d => d.BookingId)
+                .Select(g => MapToResponseFromDetails(g.Key, g.ToList()))
+                .ToList();
+
+            return ApiResponse<IEnumerable<BookingResponse>>.Ok(bookings);
+        }
+
+        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffBookingsByDateAsync(int staffId, DateOnly date)
+        {
+            var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
+            var staffPitches = await GetStaffAssignedPitchIds(staffId);
+
+            var filteredDetails = allDetails.Where(d => 
+                d.PlayDate == date && 
+                staffPitches.Contains(d.PitchId));
+
+            // Group details back into bookings for the response
+            var bookings = filteredDetails
+                .GroupBy(d => d.BookingId)
+                .Select(g => MapToResponseFromDetails(g.Key, g.ToList()))
+                .ToList();
+
+            return ApiResponse<IEnumerable<BookingResponse>>.Ok(bookings);
+        }
+
+        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffPendingBookingsAsync(int staffId)
+        {
+            var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
+            var staffPitches = await GetStaffAssignedPitchIds(staffId);
+
+            var pendingDetails = allDetails.Where(d => 
+                d.DetailStatus.Equals(BookingStatus.Pending, StringComparison.OrdinalIgnoreCase) && 
+                staffPitches.Contains(d.PitchId));
+
+            var bookings = pendingDetails
+                .GroupBy(d => d.BookingId)
+                .Select(g => MapToResponseFromDetails(g.Key, g.ToList()))
+                .ToList();
+
+            return ApiResponse<IEnumerable<BookingResponse>>.Ok(bookings);
+        }
+
+        private async Task<List<int>> GetStaffAssignedPitchIds(int staffId)
+        {
+            // Simplified: in a real app, you'd have a more efficient way to get this
+            // But since we have IsStaffAssignedToPitchAsync, let's use it or assume we can get all pitches
+            // For now, let's just get all pitches and filter
+            var allPitches = await _pitchRepository.GetAllPitchesAsync();
+            var assigned = new List<int>();
+            foreach (var p in allPitches)
+            {
+                if (await _bookingRepository.IsStaffAssignedToPitchAsync(staffId, p.PitchId))
+                {
+                    assigned.Add(p.PitchId);
+                }
+            }
+            return assigned;
+        }
+
+        private BookingResponse MapToResponseFromDetails(int bookingId, List<BookingDetail> details)
+        {
+            var first = details.First();
+            var booking = first.Booking;
+            return new BookingResponse
+            {
+                BookingId = bookingId,
+                UserId = booking.UserId,
+                TotalAmount = booking.TotalAmount,
+                Status = booking.Status,
+                PaymentStatus = booking.PaymentStatus,
+                Notes = booking.Notes,
+                CreatedAt = booking.CreatedAt,
+                Details = details.Select(d => new BookingDetailResponse
+                {
+                    DetailId = d.DetailId,
+                    PitchId = d.PitchId,
+                    PitchName = d.Pitch?.PitchName ?? "N/A",
+                    PlayDate = d.PlayDate,
+                    StartTime = d.StartTime,
+                    EndTime = d.EndTime,
+                    DurationMinutes = d.DurationMinutes,
+                    PriceAtBooking = d.PriceAtBooking,
+                    Status = d.DetailStatus,
+                    CancellationReason = d.CancellationReason
+                }).ToList()
+            };
         }
 
         private BookingResponse MapToResponse(Booking b)
@@ -478,7 +654,7 @@ namespace FootballBooking_BE.Services.Implementations
                     EndTime = d.EndTime,
                     DurationMinutes = d.DurationMinutes,
                     PriceAtBooking = d.PriceAtBooking,
-                    Status = b.Status, // Use parent Booking status for consistency
+                    Status = d.DetailStatus, // Use detail status instead of parent for more accuracy
                     CancellationReason = d.CancellationReason
                 }).ToList()
             };

@@ -31,6 +31,8 @@ namespace FootballBooking_BE.Models.DTOs.Dashboard
         
         public List<BookingsByDateDto> BookingsByDate { get; set; } = new();
         public List<RevenueByPitchDto> RevenueByPitch { get; set; } = new();
+        public List<MonthlyRevenueDto> MonthlyRevenue { get; set; } = new();
+        public List<PeakHourDto> PeakHours { get; set; } = new();
     }
 
     public class BookingsByDateDto
@@ -44,5 +46,18 @@ namespace FootballBooking_BE.Models.DTOs.Dashboard
         public int PitchId { get; set; }
         public string PitchName { get; set; } = null!;
         public decimal TotalRevenue { get; set; }
+    }
+
+    public class MonthlyRevenueDto
+    {
+        public string Month { get; set; } = null!; // e.g., "T1", "T2" or "Month YYYY"
+        public decimal Revenue { get; set; }
+        public int Bookings { get; set; }
+    }
+
+    public class PeakHourDto
+    {
+        public string HourRange { get; set; } = null!; // e.g., "06:00-09:00"
+        public int BookingsCount { get; set; }
     }
 }

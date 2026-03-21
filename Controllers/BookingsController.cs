@@ -80,6 +80,16 @@ namespace FootballBooking_BE.Controllers
             return Ok(result);
         }
 
+        [HttpPut("staff/details/{detailId}/confirm")]
+        [Authorize(Policy = "StaffOrAdmin")]
+        public async Task<ActionResult<ApiResponse<bool>>> StaffConfirmBooking(int detailId)
+        {
+            var staffId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var result = await _bookingService.StaffConfirmBookingAsync(staffId, detailId);
+            if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
         [HttpPost("staff/bulk-cancel")]
         [Authorize(Policy = "StaffOrAdmin")]
         public async Task<ActionResult<ApiResponse<bool>>> BulkCancel(BulkCancelBookingRequest request)
@@ -87,6 +97,33 @@ namespace FootballBooking_BE.Controllers
             var staffId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var result = await _bookingService.BulkCancelByPitchAsync(staffId, request);
             if (!result.Success) return BadRequest(result);
+            return Ok(result);
+        }
+
+        [HttpGet("staff/daily")]
+        [Authorize(Policy = "StaffOrAdmin")]
+        public async Task<ActionResult<ApiResponse<IEnumerable<BookingResponse>>>> GetStaffDailyBookings([FromQuery] DateOnly? date)
+        {
+            var staffId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var targetDate = date ?? DateOnly.FromDateTime(DateTime.Now);
+            var result = await _bookingService.GetStaffBookingsByDateAsync(staffId, targetDate);
+            return Ok(result);
+        }
+
+        [HttpGet("staff/pending")]
+        [Authorize(Roles = "STAFF")]
+        public async Task<IActionResult> GetStaffPendingBookings()
+        {
+            var staffId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value!);
+            var result = await _bookingService.GetStaffPendingBookingsAsync(staffId);
+            return Ok(result);
+        }
+
+        [HttpGet("pitch/{pitchId}/date/{date}")]
+        public async Task<IActionResult> GetPitchBookingsByDate(int pitchId, string date)
+        {
+            if (!DateOnly.TryParse(date, out var dateOnly)) return BadRequest("Định dạng ngày không hợp lệ.");
+            var result = await _bookingService.GetPitchBookingsByDateAsync(pitchId, dateOnly);
             return Ok(result);
         }
 
