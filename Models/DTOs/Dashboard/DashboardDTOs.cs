@@ -8,7 +8,10 @@ namespace FootballBooking_BE.Models.DTOs.Dashboard
         public int TotalBookingsCount { get; set; }
         public int CompletedBookingsCount { get; set; }
         public int RejectedBookingsCount { get; set; }
+        public int PendingBookingsCount { get; set; }
+        public int TotalManagedPitches { get; set; }
         public List<UpcomingBookingDto> UpcomingBookings { get; set; } = new();
+        public List<UpcomingBookingDto> PendingBookings { get; set; } = new();
     }
 
     public class UpcomingBookingDto
@@ -21,6 +24,8 @@ namespace FootballBooking_BE.Models.DTOs.Dashboard
         public decimal Price { get; set; }
         public string Status { get; set; } = null!;
         public string? CustomerName { get; set; } // Useful for Admin/Staff
+        public string? CustomerPhone { get; set; }
+
     }
 
     public class AdminAdvancedStatsResponse

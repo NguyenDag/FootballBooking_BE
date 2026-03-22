@@ -273,6 +273,7 @@ namespace FootballBooking_BE.Services.Implementations
             string oldStatus = detail.DetailStatus;
             detail.DetailStatus = "REJECTED"; // Staff rejects the booking
             detail.CancellationReason = request.Reason;
+            detail.StaffId = staffId;
 
             await _bookingRepository.AddStatusHistoryAsync(new BookingStatusHistory
             {
@@ -318,6 +319,7 @@ namespace FootballBooking_BE.Services.Implementations
 
             string oldStatus = detail.DetailStatus;
             detail.DetailStatus = BookingStatus.Confirmed;
+            detail.StaffId = staffId;
 
             await _bookingRepository.AddStatusHistoryAsync(new BookingStatusHistory
             {
@@ -359,6 +361,7 @@ namespace FootballBooking_BE.Services.Implementations
                 string oldStatus = detail.DetailStatus;
                 detail.DetailStatus = "CANCELLED";
                 detail.CancellationReason = $"[Hủy hàng loạt bởi Staff] {request.Reason}";
+                detail.StaffId = staffId;
 
                 await _bookingRepository.AddStatusHistoryAsync(new BookingStatusHistory
                 {
@@ -390,9 +393,23 @@ namespace FootballBooking_BE.Services.Implementations
             var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
             
             // Filter details based on user role
-            var userDetails = role.Equals(UserRole.Customer, StringComparison.OrdinalIgnoreCase) 
-                ? allDetails.Where(d => d.Booking.UserId == userId) 
-                : allDetails;
+            IEnumerable<BookingDetail> userDetails;
+
+            int managedPitches = 0;
+            if (role.Equals(UserRole.Customer, StringComparison.OrdinalIgnoreCase))
+            {
+                userDetails = allDetails.Where(d => d.Booking.UserId == userId);
+            }
+            else if (role.Equals(UserRole.Staff, StringComparison.OrdinalIgnoreCase))
+            {
+                var staffPitchIds = await _bookingRepository.GetStaffAssignedPitchIdsAsync(userId);
+                managedPitches = staffPitchIds.Count;
+                userDetails = allDetails.Where(d => staffPitchIds.Contains(d.PitchId));
+            }
+            else // ADMIN
+            {
+                userDetails = allDetails;
+            }
 
             var today = DateOnly.FromDateTime(DateTime.Now);
             var now = DateTime.Now.TimeOfDay;
@@ -404,18 +421,24 @@ namespace FootballBooking_BE.Services.Implementations
                 
                 // Upcoming Confirmed = CONFIRMED and in the future
                 UpcomingConfirmedCount = userDetails.Count(d => 
-                    d.Booking.Status.Equals(BookingStatus.Confirmed, StringComparison.OrdinalIgnoreCase) && 
+                    d.DetailStatus.Equals(BookingStatus.Confirmed, StringComparison.OrdinalIgnoreCase) && 
                     (d.PlayDate > today || (d.PlayDate == today && d.StartTime > now))),
                 
                 CompletedBookingsCount = userDetails.Count(d => 
-                    d.Booking.Status.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase)),
+                    d.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase)),
                 
                 RejectedBookingsCount = userDetails.Count(d => 
-                    d.Booking.Status.Equals(BookingStatus.Rejected, StringComparison.OrdinalIgnoreCase) ||
-                    d.Booking.Status.Equals(BookingStatus.Cancelled, StringComparison.OrdinalIgnoreCase)),
+                    d.DetailStatus.Equals(BookingStatus.Rejected, StringComparison.OrdinalIgnoreCase) ||
+                    d.DetailStatus.Equals(BookingStatus.Cancelled, StringComparison.OrdinalIgnoreCase)),
+                
+                PendingBookingsCount = userDetails.Count(d => 
+                    d.DetailStatus.Equals(BookingStatus.Pending, StringComparison.OrdinalIgnoreCase)),
+                    
+                TotalManagedPitches = managedPitches,
                 
                 UpcomingBookings = userDetails
-                    .Where(d => d.Booking.Status.Equals(BookingStatus.Confirmed, StringComparison.OrdinalIgnoreCase) && 
+                    .Where(d => (d.DetailStatus.Equals(BookingStatus.Confirmed, StringComparison.OrdinalIgnoreCase) || 
+                                 d.DetailStatus.Equals(BookingStatus.Pending, StringComparison.OrdinalIgnoreCase)) && 
                                 (d.PlayDate > today || (d.PlayDate == today && d.StartTime > now)))
                     .OrderBy(d => d.PlayDate)
                     .ThenBy(d => d.StartTime)
@@ -428,8 +451,27 @@ namespace FootballBooking_BE.Services.Implementations
                         StartTime = d.StartTime,
                         EndTime = d.EndTime,
                         Price = d.PriceAtBooking,
-                        Status = d.Booking.Status,
-                        CustomerName = d.Booking.User?.FullName
+                        Status = d.DetailStatus,
+                        CustomerName = d.Booking.User?.FullName,
+                        CustomerPhone = d.Booking.User?.Phone
+                    })
+                    .ToList(),
+                    
+                PendingBookings = userDetails
+                    .Where(d => d.DetailStatus.Equals(BookingStatus.Pending, StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(d => d.PlayDate)
+                    .ThenBy(d => d.StartTime)
+                    .Select(d => new Models.DTOs.Dashboard.UpcomingBookingDto
+                    {
+                        DetailId = d.DetailId,
+                        PitchName = d.Pitch?.PitchName ?? "N/A",
+                        PlayDate = d.PlayDate,
+                        StartTime = d.StartTime,
+                        EndTime = d.EndTime,
+                        Price = d.PriceAtBooking,
+                        Status = d.DetailStatus,
+                        CustomerName = d.Booking.User?.FullName,
+                        CustomerPhone = d.Booking.User?.Phone
                     })
                     .ToList()
             };
@@ -554,15 +596,29 @@ namespace FootballBooking_BE.Services.Implementations
 
         public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffBookingsByDateAsync(int staffId, DateOnly date)
         {
-            var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
-            var staffPitches = await GetStaffAssignedPitchIds(staffId);
+            var staffDetails = await _bookingRepository.GetBookingDetailsByStaffAndDateAsync(staffId, date);
 
-            var filteredDetails = allDetails.Where(d => 
-                d.PlayDate == date && 
-                staffPitches.Contains(d.PitchId));
+            var bookings = staffDetails
+                .GroupBy(d => d.BookingId)
+                .Select(g => MapToResponseFromDetails(g.Key, g.ToList()))
+                .ToList();
 
-            // Group details back into bookings for the response
-            var bookings = filteredDetails
+            return ApiResponse<IEnumerable<BookingResponse>>.Ok(bookings);
+        }
+
+        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffAllBookingsAsync(int staffId, DateOnly? date = null)
+        {
+            IEnumerable<BookingDetail> staffDetails;
+            if (date.HasValue)
+            {
+                staffDetails = await _bookingRepository.GetBookingDetailsByStaffAndDateAsync(staffId, date.Value);
+            }
+            else
+            {
+                staffDetails = await _bookingRepository.GetBookingDetailsByStaffAsync(staffId);
+            }
+
+            var bookings = staffDetails
                 .GroupBy(d => d.BookingId)
                 .Select(g => MapToResponseFromDetails(g.Key, g.ToList()))
                 .ToList();
@@ -572,12 +628,7 @@ namespace FootballBooking_BE.Services.Implementations
 
         public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffPendingBookingsAsync(int staffId)
         {
-            var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
-            var staffPitches = await GetStaffAssignedPitchIds(staffId);
-
-            var pendingDetails = allDetails.Where(d => 
-                d.DetailStatus.Equals(BookingStatus.Pending, StringComparison.OrdinalIgnoreCase) && 
-                staffPitches.Contains(d.PitchId));
+            var pendingDetails = await _bookingRepository.GetPendingBookingDetailsByStaffAsync(staffId);
 
             var bookings = pendingDetails
                 .GroupBy(d => d.BookingId)
@@ -587,31 +638,45 @@ namespace FootballBooking_BE.Services.Implementations
             return ApiResponse<IEnumerable<BookingResponse>>.Ok(bookings);
         }
 
-        private async Task<List<int>> GetStaffAssignedPitchIds(int staffId)
+        private async Task<List<int>> GetStaffAssignedPitchIdsAsync(int staffId)
         {
-            // Simplified: in a real app, you'd have a more efficient way to get this
-            // But since we have IsStaffAssignedToPitchAsync, let's use it or assume we can get all pitches
-            // For now, let's just get all pitches and filter
-            var allPitches = await _pitchRepository.GetAllPitchesAsync();
-            var assigned = new List<int>();
-            foreach (var p in allPitches)
-            {
-                if (await _bookingRepository.IsStaffAssignedToPitchAsync(staffId, p.PitchId))
-                {
-                    assigned.Add(p.PitchId);
-                }
-            }
-            return assigned;
+            return await _bookingRepository.GetStaffAssignedPitchIdsAsync(staffId);
         }
 
         private BookingResponse MapToResponseFromDetails(int bookingId, List<BookingDetail> details)
         {
             var first = details.First();
             var booking = first.Booking;
+
+            if (booking == null)
+            {
+                // Fallback if booking is not loaded/missing
+                return new BookingResponse
+                {
+                    BookingId = bookingId,
+                    Status = "UNKNOWN",
+                    Details = details.Select(d => new BookingDetailResponse
+                    {
+                        DetailId = d.DetailId,
+                        PitchId = d.PitchId,
+                        PitchName = d.Pitch?.PitchName ?? "N/A",
+                        PlayDate = d.PlayDate,
+                        StartTime = d.StartTime,
+                        EndTime = d.EndTime,
+                        DurationMinutes = d.DurationMinutes,
+                        PriceAtBooking = d.PriceAtBooking,
+                        Status = d.DetailStatus,
+                        CancellationReason = d.CancellationReason
+                    }).ToList()
+                };
+            }
+
             return new BookingResponse
             {
                 BookingId = bookingId,
                 UserId = booking.UserId,
+                CustomerName = booking.User?.FullName,
+                CustomerPhone = booking.User?.Phone,
                 TotalAmount = booking.TotalAmount,
                 Status = booking.Status,
                 PaymentStatus = booking.PaymentStatus,
@@ -639,6 +704,8 @@ namespace FootballBooking_BE.Services.Implementations
             {
                 BookingId = b.BookingId,
                 UserId = b.UserId,
+                CustomerName = b.User?.FullName,
+                CustomerPhone = b.User?.Phone,
                 TotalAmount = b.TotalAmount,
                 Status = b.Status,
                 PaymentStatus = b.PaymentStatus,

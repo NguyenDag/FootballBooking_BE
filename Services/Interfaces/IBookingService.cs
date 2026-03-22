@@ -21,6 +21,7 @@ namespace FootballBooking_BE.Services.Interfaces
         // Staff/Admin special views
         Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffBookingsByDateAsync(int staffId, DateOnly date);
         Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffPendingBookingsAsync(int staffId);
+        Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffAllBookingsAsync(int staffId, DateOnly? date = null);
         Task<ApiResponse<IEnumerable<BookingResponse>>> GetPitchBookingsByDateAsync(int pitchId, DateOnly date);
     }
 }

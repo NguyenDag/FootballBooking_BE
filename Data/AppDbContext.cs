@@ -170,7 +170,7 @@ namespace FootballBooking_BE.Data
                     "[DurationMinutes] IN (60, 90, 120)");
 
                 e.HasCheckConstraint("CK_BookingDetails_Status",
-                    "[DetailStatus] IN ('PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED')");
+                    "[DetailStatus] IN ('PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'REJECTED')");
 
                 // Index chống trùng slot
                 e.HasIndex(d => new { d.PitchId, d.PlayDate, d.StartTime, d.EndTime })

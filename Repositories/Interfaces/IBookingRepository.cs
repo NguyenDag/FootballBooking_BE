@@ -13,6 +13,10 @@ namespace FootballBooking_BE.Repositories.Interfaces
         Task AddStatusHistoryAsync(BookingStatusHistory history);
         Task<IEnumerable<BookingDetail>> GetActiveBookingDetailsByPitchAsync(int pitchId, DateOnly fromDate);
         Task<bool> IsStaffAssignedToPitchAsync(int staffId, int pitchId);
+        Task<List<int>> GetStaffAssignedPitchIdsAsync(int staffId);
         Task<IEnumerable<BookingDetail>> GetAllBookingDetailsAsync();
+        Task<IEnumerable<BookingDetail>> GetBookingDetailsByStaffAsync(int staffId);
+        Task<IEnumerable<BookingDetail>> GetBookingDetailsByStaffAndDateAsync(int staffId, DateOnly date);
+        Task<IEnumerable<BookingDetail>> GetPendingBookingDetailsByStaffAsync(int staffId);
     }
 }

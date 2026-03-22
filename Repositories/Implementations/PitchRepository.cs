@@ -23,6 +23,14 @@ namespace FootballBooking_BE.Repositories.Implementations
                 .Include(p => p.PriceSlots)
                 .ToListAsync();
         }
+        
+        public async Task<IEnumerable<Pitch>> GetPitchesByStaffIdAsync(int staffId)
+        {
+            return await _context.Pitches
+                .Include(p => p.PriceSlots)
+                .Where(p => p.StaffPitchAssignments.Any(a => a.StaffId == staffId))
+                .ToListAsync();
+        }
 
         public async Task<Pitch?> GetPitchByIdAsync(int id)
         {

@@ -89,12 +89,55 @@ namespace FootballBooking_BE.Repositories.Implementations
                 .AnyAsync(a => a.StaffId == staffId && a.PitchId == pitchId);
         }
 
+        public async Task<List<int>> GetStaffAssignedPitchIdsAsync(int staffId)
+        {
+            return await _context.StaffPitchAssignments
+                .Where(a => a.StaffId == staffId)
+                .Select(a => a.PitchId)
+                .ToListAsync();
+        }
+
         public async Task<IEnumerable<BookingDetail>> GetAllBookingDetailsAsync()
         {
             return await _context.BookingDetails
                 .Include(d => d.Pitch)
                 .Include(d => d.Booking)
                     .ThenInclude(b => b.User)
+                .OrderByDescending(d => d.PlayDate)
+                    .ThenByDescending(d => d.StartTime)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<BookingDetail>> GetBookingDetailsByStaffAsync(int staffId)
+        {
+            return await _context.BookingDetails
+                .Include(d => d.Pitch)
+                .Include(d => d.Booking)
+                    .ThenInclude(b => b.User)
+                .Where(d => d.Pitch.StaffPitchAssignments.Any(a => a.StaffId == staffId))
+                .OrderByDescending(d => d.PlayDate)
+                    .ThenByDescending(d => d.StartTime)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<BookingDetail>> GetBookingDetailsByStaffAndDateAsync(int staffId, DateOnly date)
+        {
+            return await _context.BookingDetails
+                .Include(d => d.Pitch)
+                .Include(d => d.Booking)
+                    .ThenInclude(b => b.User)
+                .Where(d => d.Pitch.StaffPitchAssignments.Any(a => a.StaffId == staffId) && d.PlayDate == date)
+                .OrderByDescending(d => d.StartTime)
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<BookingDetail>> GetPendingBookingDetailsByStaffAsync(int staffId)
+        {
+            return await _context.BookingDetails
+                .Include(d => d.Pitch)
+                .Include(d => d.Booking)
+                    .ThenInclude(b => b.User)
+                .Where(d => d.Pitch.StaffPitchAssignments.Any(a => a.StaffId == staffId) && d.DetailStatus == "PENDING")
                 .OrderByDescending(d => d.PlayDate)
                     .ThenByDescending(d => d.StartTime)
                 .ToListAsync();

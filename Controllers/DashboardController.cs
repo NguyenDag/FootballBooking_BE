@@ -47,7 +47,7 @@ namespace FootballBooking_BE.Controllers
 
         private string GetCurrentUserRole()
         {
-            return User.FindFirst(ClaimTypes.Role)?.Value ?? UserRole.Customer;
+            return User.FindFirst(ClaimTypes.Role)?.Value ?? User.FindFirst("role")?.Value ?? UserRole.Customer;
         }
     }
 }

@@ -28,6 +28,9 @@ namespace FootballBooking_BE.Models.DTOs
         public string Status { get; set; } = null!;
         public string PaymentStatus { get; set; } = null!;
         public string? Notes { get; set; }
+        public string? CustomerName { get; set; }
+        public string? CustomerPhone { get; set; }
+
         public DateTime CreatedAt { get; set; }
         public List<BookingDetailResponse> Details { get; set; } = new();
     }

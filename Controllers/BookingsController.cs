@@ -125,6 +125,18 @@ namespace FootballBooking_BE.Controllers
             return Ok(result);
         }
 
+        [HttpGet("staff/all")]
+        [Authorize(Roles = "ADMIN,STAFF")]
+        public async Task<IActionResult> GetStaffAllBookings([FromQuery] DateOnly? date = null)
+        {
+            var userIdStr = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(userIdStr)) return Unauthorized(ApiResponse<object>.Fail("Không tìm thấy thông tin định danh."));
+
+            var staffId = int.Parse(userIdStr);
+            var result = await _bookingService.GetStaffAllBookingsAsync(staffId, date);
+            return Ok(result);
+        }
+
         [HttpGet("pitch/{pitchId}/date/{date}")]
         public async Task<IActionResult> GetPitchBookingsByDate(int pitchId, string date)
         {

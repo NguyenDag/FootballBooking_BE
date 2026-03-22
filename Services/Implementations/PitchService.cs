@@ -20,6 +20,12 @@ namespace FootballBooking_BE.Services.Implementations
             return pitches.Select(MapToDTO);
         }
 
+        public async Task<IEnumerable<PitchDTO>> GetPitchesByStaffIdAsync(int staffId)
+        {
+            var pitches = await _pitchRepo.GetPitchesByStaffIdAsync(staffId);
+            return pitches.Select(MapToDTO);
+        }
+
         public async Task<PitchDTO?> GetPitchByIdAsync(int id)
         {
             var pitch = await _pitchRepo.GetPitchByIdAsync(id);

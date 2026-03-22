@@ -20,7 +20,20 @@ namespace FootballBooking_BE.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll()
         {
-            var result = await _pitchService.GetAllPitchesAsync();
+            var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            IEnumerable<PitchDTO> result;
+
+            if (userRole == "STAFF" && int.TryParse(userIdClaim, out int staffId))
+            {
+                result = await _pitchService.GetPitchesByStaffIdAsync(staffId);
+            }
+            else
+            {
+                result = await _pitchService.GetAllPitchesAsync();
+            }
+
             return Ok(ApiResponse<IEnumerable<PitchDTO>>.Ok(result, "Lấy danh sách sân thành công"));
         }
 
