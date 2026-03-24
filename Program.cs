@@ -23,6 +23,10 @@ namespace FootballBooking_BE
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("MyCnn")));
 
+            builder.Services.AddMemoryCache();
+            builder.Services.Configure<FootballBooking_BE.Models.EmailSettings>(
+                builder.Configuration.GetSection("EmailSettings"));
+
             // ─── CORS ─────────────────────────────────────────────────────
             builder.Services.AddCors(options =>
             {
@@ -81,6 +85,7 @@ namespace FootballBooking_BE
             builder.Services.AddScoped<IAuthRepository, AuthRepository>();
             builder.Services.AddScoped<IStaffRepository, StaffRepository>();
             builder.Services.AddScoped<IStaffService, StaffService>();
+            builder.Services.AddScoped<IEmailService, EmailService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<IJwtService, JwtService>();
             builder.Services.AddScoped<IPitchRepository, PitchRepository>();

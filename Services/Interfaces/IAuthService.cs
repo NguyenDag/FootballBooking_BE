@@ -1,9 +1,10 @@
-﻿using FootballBooking_BE.Models.DTOs.Auth;
+using FootballBooking_BE.Models.DTOs.Auth;
 using Microsoft.AspNetCore.Identity.Data;
 using ForgotPasswordRequest = FootballBooking_BE.Models.DTOs.Auth.ForgotPasswordRequest;
 using LoginRequest = FootballBooking_BE.Models.DTOs.Auth.LoginRequest;
 using RegisterRequest = FootballBooking_BE.Models.DTOs.Auth.RegisterRequest;
 using ResetPasswordRequest = FootballBooking_BE.Models.DTOs.Auth.ResetPasswordRequest;
+using VerifyOtpRequest = FootballBooking_BE.Models.DTOs.Auth.VerifyOtpRequest;
 
 namespace FootballBooking_BE.Services.Interfaces
 {
@@ -19,7 +20,8 @@ namespace FootballBooking_BE.Services.Interfaces
         Task<UserProfileResponse> UpdateProfileAsync(int userId, UpdateProfileRequest request);
         Task ChangePasswordAsync(int userId, ChangePasswordRequest request);
 
-        Task ForgotPasswordAsync(ForgotPasswordRequest request);
+        Task SendOtpAsync(ForgotPasswordRequest request);
+        Task<string> VerifyOtpAsync(VerifyOtpRequest request);
         Task ResetPasswordAsync(ResetPasswordRequest request);
     }
 }

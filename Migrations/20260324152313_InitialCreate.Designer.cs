@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace FootballBooking_BE.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260322075642_AllowRejectedStatus")]
-    partial class AllowRejectedStatus
+    [Migration("20260324152313_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

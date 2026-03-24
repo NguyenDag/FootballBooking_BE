@@ -23,6 +23,7 @@ namespace FootballBooking_BE.Migrations
                     PitchType = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ImageUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
@@ -125,6 +126,56 @@ namespace FootballBooking_BE.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "PasswordResetTokens",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<int>(type: "int", nullable: false),
+                    Token = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsUsed = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PasswordResetTokens", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PasswordResetTokens_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "UserId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RefreshTokens",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<int>(type: "int", nullable: false),
+                    Token = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsRevoked = table.Column<bool>(type: "bit", nullable: false),
+                    RevokedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ReplacedByToken = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedByIp = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RevokedByIp = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RefreshTokens", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RefreshTokens_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "UserId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "StaffPitchAssignments",
                 columns: table => new
                 {
@@ -145,6 +196,39 @@ namespace FootballBooking_BE.Migrations
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_StaffPitchAssignments_Users_StaffId",
+                        column: x => x.StaffId,
+                        principalTable: "Users",
+                        principalColumn: "UserId",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StaffShifts",
+                columns: table => new
+                {
+                    ShiftId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    StaffId = table.Column<int>(type: "int", nullable: false),
+                    PitchId = table.Column<int>(type: "int", nullable: false),
+                    DayOfWeek = table.Column<int>(type: "int", nullable: false),
+                    StartTime = table.Column<TimeSpan>(type: "time", nullable: false),
+                    EndTime = table.Column<TimeSpan>(type: "time", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StaffShifts", x => x.ShiftId);
+                    table.CheckConstraint("CK_StaffShift_DayOfWeek", "[DayOfWeek] BETWEEN 1 AND 7");
+                    table.CheckConstraint("CK_StaffShift_Time", "[StartTime] < [EndTime]");
+                    table.ForeignKey(
+                        name: "FK_StaffShifts_Pitches_PitchId",
+                        column: x => x.PitchId,
+                        principalTable: "Pitches",
+                        principalColumn: "PitchId",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_StaffShifts_Users_StaffId",
                         column: x => x.StaffId,
                         principalTable: "Users",
                         principalColumn: "UserId",
@@ -196,7 +280,7 @@ namespace FootballBooking_BE.Migrations
                 {
                     table.PrimaryKey("PK_BookingDetails", x => x.DetailId);
                     table.CheckConstraint("CK_BookingDetails_Duration", "[DurationMinutes] IN (60, 90, 120)");
-                    table.CheckConstraint("CK_BookingDetails_Status", "[DetailStatus] IN ('PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED')");
+                    table.CheckConstraint("CK_BookingDetails_Status", "[DetailStatus] IN ('PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'REJECTED')");
                     table.ForeignKey(
                         name: "FK_BookingDetails_Bookings_BookingId",
                         column: x => x.BookingId,
@@ -446,14 +530,78 @@ namespace FootballBooking_BE.Migrations
                 });
 
             migrationBuilder.InsertData(
+                table: "Pitches",
+                columns: new[] { "PitchId", "CreatedAt", "Description", "ImageUrl", "PitchName", "PitchType", "Status" },
+                values: new object[,]
+                {
+                    { 1, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Sân 5 người cỏ nhân tạo mới thay", null, "Sân 5A (Cỏ mới)", "5_PERSON", "ACTIVE" },
+                    { 2, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Sân 5 người, đá không sợ mưa", null, "Sân 5B (Có mái che)", "5_PERSON", "ACTIVE" },
+                    { 3, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Sân 7 người kích thước chuẩn", null, "Sân 7A (Tiêu chuẩn)", "7_PERSON", "ACTIVE" },
+                    { 4, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Sân đang thay lưới và đèn", null, "Sân 7B (Bảo trì)", "7_PERSON", "MAINTENANCE" },
+                    { 5, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Sân 11 người phục vụ giải đấu", null, "Sân 11 Lớn", "11_PERSON", "ACTIVE" }
+                });
+
+            migrationBuilder.InsertData(
                 table: "RefundPolicies",
                 columns: new[] { "PolicyId", "CancelBeforeHours", "CreatedAt", "Description", "IsActive", "RefundPercentage" },
                 values: new object[,]
                 {
-                    { 1, 48, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Huỷ trước 48 giờ — hoàn 100%", true, 100.00m },
-                    { 2, 24, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Huỷ trước 24 giờ — hoàn 70%", true, 70.00m },
-                    { 3, 12, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Huỷ trước 12 giờ — hoàn 50%", true, 50.00m },
-                    { 4, 6, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Huỷ trong vòng 6 giờ — không hoàn tiền", true, 0.00m }
+                    { 1, 72, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Hủy trước 3 ngày (72h) - Hoàn 100%", true, 100.00m },
+                    { 2, 48, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Hủy trước 2 ngày (48h) - Hoàn 75%", true, 75.00m },
+                    { 3, 24, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Hủy trước 1 ngày (24h) - Hoàn 50%", true, 50.00m },
+                    { 4, 12, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Hủy trước 12 tiếng - Hoàn 20%", true, 20.00m },
+                    { 5, 6, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "Hủy sát giờ (dưới 6 tiếng) - Không hoàn tiền", true, 0.00m }
+                });
+
+            migrationBuilder.InsertData(
+                table: "Users",
+                columns: new[] { "UserId", "CreatedAt", "Email", "FullName", "IsActive", "Password", "Phone", "Role" },
+                values: new object[,]
+                {
+                    { 1, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "admin@football.com", "Admin Quản Trị", true, "$2a$11$IcrPPnD8wX2UaRxXKadYfOUAo7t7snZV914CKUKx40QdEgO30H68W", "0901111111", "ADMIN" },
+                    { 2, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "staff1@football.com", "Nguyễn Văn A (Nhân viên 1)", true, "$2a$11$IcrPPnD8wX2UaRxXKadYfOUAo7t7snZV914CKUKx40QdEgO30H68W", "0902222222", "STAFF" },
+                    { 3, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "staff2@football.com", "Trần Thị B (Nhân viên 2)", true, "$2a$11$IcrPPnD8wX2UaRxXKadYfOUAo7t7snZV914CKUKx40QdEgO30H68W", "0903333333", "STAFF" },
+                    { 4, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "customer1@gmail.com", "Lê Khách C", true, "$2a$11$IcrPPnD8wX2UaRxXKadYfOUAo7t7snZV914CKUKx40QdEgO30H68W", "0904444444", "CUSTOMER" },
+                    { 5, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), "customer2@gmail.com", "Phạm Khách D", true, "$2a$11$IcrPPnD8wX2UaRxXKadYfOUAo7t7snZV914CKUKx40QdEgO30H68W", "0905555555", "CUSTOMER" }
+                });
+
+            migrationBuilder.InsertData(
+                table: "PriceSlots",
+                columns: new[] { "PriceSlotId", "ApplyOn", "EndTime", "IsPeakHour", "PitchId", "PitchType", "PricePerHour", "StartTime" },
+                values: new object[,]
+                {
+                    { 1, "WEEKDAY", new TimeSpan(0, 16, 0, 0, 0), false, 1, "5_PERSON", 200000m, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 2, "WEEKDAY", new TimeSpan(0, 22, 0, 0, 0), true, 1, "5_PERSON", 350000m, new TimeSpan(0, 16, 0, 0, 0) },
+                    { 3, "WEEKEND", new TimeSpan(0, 16, 0, 0, 0), false, 1, "5_PERSON", 250000m, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 4, "WEEKEND", new TimeSpan(0, 22, 0, 0, 0), true, 1, "5_PERSON", 400000m, new TimeSpan(0, 16, 0, 0, 0) },
+                    { 5, "WEEKDAY", new TimeSpan(0, 16, 0, 0, 0), false, 2, "5_PERSON", 220000m, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 6, "WEEKDAY", new TimeSpan(0, 22, 0, 0, 0), true, 2, "5_PERSON", 370000m, new TimeSpan(0, 16, 0, 0, 0) },
+                    { 7, "WEEKEND", new TimeSpan(0, 16, 0, 0, 0), false, 2, "5_PERSON", 270000m, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 8, "WEEKEND", new TimeSpan(0, 22, 0, 0, 0), true, 2, "5_PERSON", 420000m, new TimeSpan(0, 16, 0, 0, 0) },
+                    { 9, "WEEKDAY", new TimeSpan(0, 16, 0, 0, 0), false, 3, "7_PERSON", 400000m, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 10, "WEEKDAY", new TimeSpan(0, 22, 0, 0, 0), true, 3, "7_PERSON", 600000m, new TimeSpan(0, 16, 0, 0, 0) },
+                    { 11, "WEEKEND", new TimeSpan(0, 16, 0, 0, 0), false, 3, "7_PERSON", 450000m, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 12, "WEEKEND", new TimeSpan(0, 22, 0, 0, 0), true, 3, "7_PERSON", 700000m, new TimeSpan(0, 16, 0, 0, 0) },
+                    { 13, "WEEKDAY", new TimeSpan(0, 16, 0, 0, 0), false, 4, "7_PERSON", 380000m, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 14, "WEEKDAY", new TimeSpan(0, 22, 0, 0, 0), true, 4, "7_PERSON", 580000m, new TimeSpan(0, 16, 0, 0, 0) },
+                    { 15, "WEEKEND", new TimeSpan(0, 16, 0, 0, 0), false, 4, "7_PERSON", 430000m, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 16, "WEEKEND", new TimeSpan(0, 22, 0, 0, 0), true, 4, "7_PERSON", 680000m, new TimeSpan(0, 16, 0, 0, 0) },
+                    { 17, "WEEKDAY", new TimeSpan(0, 16, 0, 0, 0), false, 5, "11_PERSON", 800000m, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 18, "WEEKDAY", new TimeSpan(0, 22, 0, 0, 0), true, 5, "11_PERSON", 1200000m, new TimeSpan(0, 16, 0, 0, 0) },
+                    { 19, "WEEKEND", new TimeSpan(0, 16, 0, 0, 0), false, 5, "11_PERSON", 900000m, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 20, "WEEKEND", new TimeSpan(0, 22, 0, 0, 0), true, 5, "11_PERSON", 1400000m, new TimeSpan(0, 16, 0, 0, 0) }
+                });
+
+            migrationBuilder.InsertData(
+                table: "StaffShifts",
+                columns: new[] { "ShiftId", "CreatedAt", "DayOfWeek", "EndTime", "IsActive", "PitchId", "StaffId", "StartTime" },
+                values: new object[,]
+                {
+                    { 1, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 2, new TimeSpan(0, 14, 0, 0, 0), true, 1, 2, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 2, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 3, new TimeSpan(0, 22, 0, 0, 0), true, 2, 2, new TimeSpan(0, 14, 0, 0, 0) },
+                    { 3, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 4, new TimeSpan(0, 14, 0, 0, 0), true, 3, 3, new TimeSpan(0, 6, 0, 0, 0) },
+                    { 4, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 7, new TimeSpan(0, 22, 0, 0, 0), true, 5, 3, new TimeSpan(0, 16, 0, 0, 0) },
+                    { 5, new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc), 1, new TimeSpan(0, 16, 0, 0, 0), true, 1, 2, new TimeSpan(0, 8, 0, 0, 0) }
                 });
 
             migrationBuilder.CreateIndex(
@@ -487,6 +635,17 @@ namespace FootballBooking_BE.Migrations
                 column: "ChangedBy");
 
             migrationBuilder.CreateIndex(
+                name: "IX_PasswordResetTokens_Token",
+                table: "PasswordResetTokens",
+                column: "Token",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PasswordResetTokens_UserId",
+                table: "PasswordResetTokens",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IDX_Payments_Booking",
                 table: "Payments",
                 column: "BookingId");
@@ -512,6 +671,17 @@ namespace FootballBooking_BE.Migrations
                 name: "IX_PriceSlots_PitchId",
                 table: "PriceSlots",
                 column: "PitchId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RefreshTokens_Token",
+                table: "RefreshTokens",
+                column: "Token",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RefreshTokens_UserId",
+                table: "RefreshTokens",
+                column: "UserId");
 
             migrationBuilder.CreateIndex(
                 name: "IDX_Refunds_Payment",
@@ -555,6 +725,16 @@ namespace FootballBooking_BE.Migrations
                 table: "StaffPitchAssignments",
                 columns: new[] { "StaffId", "PitchId" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IDX_StaffShift_Lookup",
+                table: "StaffShifts",
+                columns: new[] { "StaffId", "PitchId", "DayOfWeek" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StaffShifts_PitchId",
+                table: "StaffShifts",
+                column: "PitchId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_TopUpRequests_ConfirmedBy",
@@ -613,7 +793,13 @@ namespace FootballBooking_BE.Migrations
                 name: "BookingStatusHistory");
 
             migrationBuilder.DropTable(
+                name: "PasswordResetTokens");
+
+            migrationBuilder.DropTable(
                 name: "PriceSlots");
+
+            migrationBuilder.DropTable(
+                name: "RefreshTokens");
 
             migrationBuilder.DropTable(
                 name: "RefundPolicies");
@@ -623,6 +809,9 @@ namespace FootballBooking_BE.Migrations
 
             migrationBuilder.DropTable(
                 name: "StaffPitchAssignments");
+
+            migrationBuilder.DropTable(
+                name: "StaffShifts");
 
             migrationBuilder.DropTable(
                 name: "TopUpRequests");

@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using FootballBooking_BE.Common;
 using FootballBooking_BE.Models.DTOs.Auth;
 using FootballBooking_BE.Services.Interfaces;
@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using ForgotPasswordRequest = FootballBooking_BE.Models.DTOs.Auth.ForgotPasswordRequest;
 using LoginRequest = FootballBooking_BE.Models.DTOs.Auth.LoginRequest;
 using ResetPasswordRequest = FootballBooking_BE.Models.DTOs.Auth.ResetPasswordRequest;
+using VerifyOtpRequest = FootballBooking_BE.Models.DTOs.Auth.VerifyOtpRequest;
 
 namespace FootballBooking_BE.Controllers
 {
@@ -122,18 +123,31 @@ namespace FootballBooking_BE.Controllers
         }
 
         // ─────────────────────────────────────────────────────────────
-        // POST /api/auth/forgot-password
+        // POST /api/auth/send-otp
         // ─────────────────────────────────────────────────────────────
-        /// <summary>Yêu cầu reset mật khẩu qua email</summary>
-        [HttpPost("forgot-password")]
+        /// <summary>Yêu cầu gửi mã OTP để đặt lại mật khẩu</summary>
+        [HttpPost("send-otp")]
         [AllowAnonymous]
-        public async Task<ActionResult<ApiResponse<object>>> ForgotPassword(
+        public async Task<ActionResult<ApiResponse<object>>> SendOtp(
             [FromBody] ForgotPasswordRequest request)
         {
-            await _authService.ForgotPasswordAsync(request);
+            await _authService.SendOtpAsync(request);
             // Luôn trả về 200 để không lộ email có tồn tại không
             return Ok(ApiResponse<object>.Ok(null!,
-                "Nếu email tồn tại, hướng dẫn đặt lại mật khẩu đã được gửi."));
+                "Nếu email hợp lệ, mã OTP đã được gửi đến hộp thư của bạn."));
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // POST /api/auth/verify-otp
+        // ─────────────────────────────────────────────────────────────
+        /// <summary>Xác thực mã OTP</summary>
+        [HttpPost("verify-otp")]
+        [AllowAnonymous]
+        public async Task<ActionResult<ApiResponse<object>>> VerifyOtp(
+            [FromBody] VerifyOtpRequest request)
+        {
+            var resetToken = await _authService.VerifyOtpAsync(request);
+            return Ok(ApiResponse<object>.Ok(new { reset_token = resetToken }, "Xác thực OTP thành công."));
         }
 
         // ─────────────────────────────────────────────────────────────

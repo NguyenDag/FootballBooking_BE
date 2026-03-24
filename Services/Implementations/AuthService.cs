@@ -5,6 +5,7 @@ using FootballBooking_BE.Models.DTOs.Auth;
 using FootballBooking_BE.Repositories.Interfaces;
 using FootballBooking_BE.Services.Interfaces;
 using Microsoft.AspNetCore.Identity.Data;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace FootballBooking_BE.Services.Implementations
 {
@@ -14,19 +15,30 @@ namespace FootballBooking_BE.Services.Implementations
         private readonly IJwtService _jwtService;
         private readonly IConfiguration _config;
         private readonly ILogger<AuthService> _logger;
+        private readonly IEmailService _emailService;
+        private readonly IMemoryCache _cache;
 
         private readonly int _refreshTokenDays;
+        
+        // ── OTP Settings ──────────────────────────────────────────────────────────
+        private const int OtpExpiryMinutes = 5;
+        private const string OtpCachePrefix = "otp_";
+        private const string ResetTokenCachePrefix = "reset_";
 
         public AuthService(
             IAuthRepository authRepo,
             IJwtService jwtService,
             IConfiguration config,
-            ILogger<AuthService> logger)
+            ILogger<AuthService> logger,
+            IEmailService emailService,
+            IMemoryCache cache)
         {
             _authRepo = authRepo;
             _jwtService = jwtService;
             _config = config;
             _logger = logger;
+            _emailService = emailService;
+            _cache = cache;
             _refreshTokenDays = int.Parse(config["Jwt:RefreshTokenExpiryDays"] ?? "7");
         }
 
@@ -169,44 +181,60 @@ namespace FootballBooking_BE.Services.Implementations
             await _authRepo.RevokeAllUserTokensAsync(userId);
         }
 
-        // ─── FORGOT / RESET PASSWORD ──────────────────────────────────
+        // ─── FORGOT / RESET PASSWORD (OTP FLOW) ───────────────────────
 
-        public async Task ForgotPasswordAsync(Models.DTOs.Auth.ForgotPasswordRequest request)
+        public async Task SendOtpAsync(Models.DTOs.Auth.ForgotPasswordRequest request)
         {
             var user = await _authRepo.GetByEmailAsync(request.Email);
+            if (user == null || !user.IsActive) return;
 
-            // Không tiết lộ email có tồn tại hay không (security best practice)
-            if (user == null) return;
+            // Generate 6 digit OTP
+            var otp = GenerateOtp();
+            
+            // Save to cache
+            var cacheKey = OtpCachePrefix + request.Email.ToLower().Trim();
+            _cache.Set(cacheKey, otp, TimeSpan.FromMinutes(OtpExpiryMinutes));
 
-            var resetToken = new Random().Next(100000, 999999).ToString();
-            var expiry = DateTime.UtcNow.AddMinutes(15); // Token có hiệu lực 15 phút
+            // Send Email
+            await _emailService.SendOtpAsync(user.Email, otp);
+            _logger.LogInformation("Sent OTP to {Email}", user.Email);
+        }
 
-            await _authRepo.SavePasswordResetTokenAsync(user.UserId, resetToken, expiry);
+        public Task<string> VerifyOtpAsync(Models.DTOs.Auth.VerifyOtpRequest request)
+        {
+            var cacheKey = OtpCachePrefix + request.Email.ToLower().Trim();
 
-            // TODO: Gửi email chứa link reset
-            // await _emailService.SendPasswordResetEmailAsync(user.Email, resetToken);
-            _logger.LogInformation(
-                "Password reset token for {Email}: {Token}", user.Email, resetToken);
+            if (!_cache.TryGetValue(cacheKey, out string? storedOtp) || storedOtp != request.Otp)
+                throw new InvalidOperationException("Mã OTP không hợp lệ hoặc đã hết hạn.");
+
+            _cache.Remove(cacheKey);
+
+            // Generate reset token
+            var resetToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+            var resetKey = ResetTokenCachePrefix + resetToken;
+            _cache.Set(resetKey, request.Email.ToLower().Trim(), TimeSpan.FromMinutes(15)); // Token valid for 15 mins
+
+            return Task.FromResult(resetToken);
         }
 
         public async Task ResetPasswordAsync(Models.DTOs.Auth.ResetPasswordRequest request)
         {
-            var tokenData = await _authRepo.GetPasswordResetTokenAsync(request.Token)
-                ?? throw new InvalidOperationException("Token không hợp lệ hoặc đã được sử dụng.");
+            var resetKey = ResetTokenCachePrefix + request.Token;
 
-            if (DateTime.UtcNow > tokenData.Expiry)
-                throw new InvalidOperationException("Token đã hết hạn. Vui lòng yêu cầu lại.");
+            if (!_cache.TryGetValue(resetKey, out string? email) || string.IsNullOrEmpty(email))
+                throw new UnauthorizedAccessException("Token đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.");
+            
+            if (!email.Equals(request.Email.ToLower().Trim(), StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Token không khớp với email.");
 
-            var user = await _authRepo.GetByIdAsync(tokenData.UserId)
+            var user = await _authRepo.GetByEmailAsync(email)
                 ?? throw new KeyNotFoundException("Người dùng không tồn tại.");
-
-            if (!user.Email.Equals(request.Email, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Token không hợp lệ.");
 
             user.Password = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
             await _authRepo.UpdateUserAsync(user);
 
-            await _authRepo.DeletePasswordResetTokenAsync(request.Token);
+            // Clean up cache & revoke sessions
+            _cache.Remove(resetKey);
             await _authRepo.RevokeAllUserTokensAsync(user.UserId);
         }
 
@@ -238,6 +266,13 @@ namespace FootballBooking_BE.Services.Implementations
             };
 
             return await _authRepo.CreateRefreshTokenAsync(token);
+        }
+
+        private static string GenerateOtp()
+        {
+            var bytes = RandomNumberGenerator.GetBytes(4);
+            var number = BitConverter.ToUInt32(bytes, 0) % 1_000_000;
+            return number.ToString("D6");
         }
 
         private static UserProfileResponse MapToProfile(User user) => new()
