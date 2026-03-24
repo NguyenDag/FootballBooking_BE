@@ -10,6 +10,7 @@ namespace FootballBooking_BE.Repositories.Interfaces
         Task<User> CreateStaffAsync(User user);
         Task<User> UpdateStaffAsync(User user);
         Task<bool> DeleteStaffAsync(int staffId); // soft delete (IsActive = false)
+        Task<bool> HardDeleteStaffAsync(int staffId); // hard delete (xóa khỏi DB)
 
         // ─── PITCH ASSIGNMENT ─────────────────────────────────────
         Task<List<StaffPitchAssignment>> GetAssignmentsByStaffIdAsync(int staffId);

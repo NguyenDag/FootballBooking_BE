@@ -1,4 +1,4 @@
-﻿using FootballBooking_BE.Common;
+using FootballBooking_BE.Common;
 using FootballBooking_BE.Models.DTOs.Staff;
 using FootballBooking_BE.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -70,6 +70,14 @@ namespace FootballBooking_BE.Controllers
         {
             await _staffService.DeleteStaffAsync(id);
             return Ok(ApiResponse<object>.Ok(null!, "Nhân viên đã bị vô hiệu hoá."));
+        }
+
+        /// <summary>DELETE /api/admin/staff/{id}/permanent — Xóa vĩnh viễn nhân viên</summary>
+        [HttpDelete("{id:int}/permanent")]
+        public async Task<ActionResult<ApiResponse<object>>> HardDelete(int id)
+        {
+            await _staffService.HardDeleteStaffAsync(id);
+            return Ok(ApiResponse<object>.Ok(null!, "Nhân viên đã bị xóa vĩnh viễn khỏi hệ thống."));
         }
 
         // ═══════════════════════════════════════════════════════════

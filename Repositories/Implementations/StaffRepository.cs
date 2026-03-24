@@ -52,6 +52,101 @@ namespace FootballBooking_BE.Repositories.Implementations
             return true;
         }
 
+        public async Task<bool> HardDeleteStaffAsync(int staffId)
+        {
+            var staff = await _context.Users
+                .FirstOrDefaultAsync(u => u.UserId == staffId && u.Role == "STAFF");
+
+            if (staff == null) return false;
+
+            // 1. Xóa các bảng phụ thuộc trực tiếp (Restrict)
+            var shifts = await _context.StaffShifts.Where(s => s.StaffId == staffId).ToListAsync();
+            _context.StaffShifts.RemoveRange(shifts);
+
+            var assignments = await _context.StaffPitchAssignments.Where(a => a.StaffId == staffId).ToListAsync();
+            _context.StaffPitchAssignments.RemoveRange(assignments);
+
+            var refreshTokens = await _context.RefreshTokens.Where(rt => rt.UserId == staffId).ToListAsync();
+            _context.RefreshTokens.RemoveRange(refreshTokens);
+
+            var resetTokens = await _context.PasswordResetTokens.Where(t => t.UserId == staffId).ToListAsync();
+            _context.PasswordResetTokens.RemoveRange(resetTokens);
+
+            // 2. Xóa các bảng mà Staff đóng vai trò là Customer (UserId)
+            // Tìm tất cả các Bookings của staff (nếu có)
+            var userBookingIds = await _context.Bookings
+                .Where(b => b.UserId == staffId)
+                .Select(b => b.BookingId)
+                .ToListAsync();
+
+            if (userBookingIds.Any())
+            {
+                // Xóa Refunds liên quan đến các Payments của các Bookings này
+                var refundsToDelete = await _context.Refunds
+                    .Where(r => _context.Payments.Any(p => p.PaymentId == r.PaymentId && userBookingIds.Contains(p.BookingId)))
+                    .ToListAsync();
+                _context.Refunds.RemoveRange(refundsToDelete);
+
+                // Xóa các Refunds mà Staff là người yêu cầu (RequestedBy)
+                var requestedRefunds = await _context.Refunds.Where(r => r.RequestedBy == staffId).ToListAsync();
+                _context.Refunds.RemoveRange(requestedRefunds);
+
+                // Xóa Payments liên quan đến các Bookings này
+                var paymentsToDelete = await _context.Payments
+                    .Where(p => userBookingIds.Contains(p.BookingId))
+                    .ToListAsync();
+                _context.Payments.RemoveRange(paymentsToDelete);
+
+                // Xóa các Transactions liên quan đến Bookings này trước
+                var bookingTransactions = await _context.Transactions
+                    .Where(t => t.BookingId != null && userBookingIds.Contains(t.BookingId.Value))
+                    .ToListAsync();
+                _context.Transactions.RemoveRange(bookingTransactions);
+
+                // Xóa chính các Bookings (sẽ cascade xóa BookingDetails)
+                var bookingsToDelete = await _context.Bookings
+                    .Where(b => userBookingIds.Contains(b.BookingId))
+                    .ToListAsync();
+                _context.Bookings.RemoveRange(bookingsToDelete);
+            }
+
+            // Xóa TopUpRequests, Wallet và các Transactions của Wallet (Restrict)
+            var topUps = await _context.TopUpRequests.Where(t => t.UserId == staffId).ToListAsync();
+            _context.TopUpRequests.RemoveRange(topUps);
+
+            var wallet = await _context.Wallets.FirstOrDefaultAsync(w => w.UserId == staffId);
+            if (wallet != null)
+            {
+                // QUAN TRỌNG: Xóa tất cả giao dịch trong ví trước khi xóa ví (tránh lỗi Restrict)
+                var walletTransactions = await _context.Transactions
+                    .Where(t => t.WalletId == wallet.WalletId)
+                    .ToListAsync();
+                _context.Transactions.RemoveRange(walletTransactions);
+
+                _context.Wallets.Remove(wallet);
+            }
+
+            // 3. Nullify các bảng mà Staff đóng vai trò là Admin/Reviewer (StaffId/ConfirmedBy/ReviewedBy)
+            var managedDetails = await _context.BookingDetails.Where(bd => bd.StaffId == staffId).ToListAsync();
+            foreach (var bd in managedDetails) bd.StaffId = null;
+
+            var confirmedPayments = await _context.Payments.Where(p => p.ConfirmedBy == staffId).ToListAsync();
+            foreach (var p in confirmedPayments) p.ConfirmedBy = null;
+
+            var reviewedRefunds = await _context.Refunds.Where(r => r.ReviewedBy == staffId).ToListAsync();
+            foreach (var r in reviewedRefunds) r.ReviewedBy = null;
+
+            var confirmedTopUps = await _context.TopUpRequests.Where(t => t.ConfirmedBy == staffId).ToListAsync();
+            foreach (var t in confirmedTopUps) t.ConfirmedBy = null;
+
+            var history = await _context.BookingStatusHistories.Where(h => h.ChangedBy == staffId).ToListAsync();
+            foreach (var h in history) h.ChangedBy = null;
+
+            _context.Users.Remove(staff);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
         // ─── PITCH ASSIGNMENT ─────────────────────────────────────
 
         public async Task<List<StaffPitchAssignment>> GetAssignmentsByStaffIdAsync(int staffId)

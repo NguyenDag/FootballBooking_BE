@@ -9,7 +9,8 @@ namespace FootballBooking_BE.Services.Interfaces
         Task<StaffResponse> GetStaffDetailAsync(int staffId);
         Task<StaffResponse> CreateStaffAsync(CreateStaffRequest request);
         Task<StaffResponse> UpdateStaffAsync(int staffId, UpdateStaffRequest request);
-        Task DeleteStaffAsync(int staffId);
+        Task DeleteStaffAsync(int staffId); // soft delete
+        Task HardDeleteStaffAsync(int staffId); // hard delete (xóa hẳn DB)
 
         // ─── ADMIN: Phân công sân ─────────────────────────────────
         Task<AssignedPitchResponse> AssignPitchAsync(int staffId, AssignPitchRequest request);

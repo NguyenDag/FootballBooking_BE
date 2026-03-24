@@ -101,6 +101,18 @@ namespace FootballBooking_BE.Services.Implementations
             await _staffRepo.DeleteStaffAsync(staffId);
         }
 
+        public async Task HardDeleteStaffAsync(int staffId)
+        {
+            var staff = await _staffRepo.GetStaffByIdAsync(staffId)
+                ?? throw new KeyNotFoundException("Không tìm thấy nhân viên.");
+
+            if (staff.IsActive)
+                throw new InvalidOperationException(
+                    "Hãy vô hiệu hóa nhân viên trước khi xóa vĩnh viễn.");
+
+            await _staffRepo.HardDeleteStaffAsync(staffId);
+        }
+
         // ─── ADMIN: Phân công sân ─────────────────────────────────
 
         public async Task<AssignedPitchResponse> AssignPitchAsync(int staffId, AssignPitchRequest request)
@@ -157,6 +169,10 @@ namespace FootballBooking_BE.Services.Implementations
         {
             var staff = await _staffRepo.GetStaffByIdAsync(staffId)
                 ?? throw new KeyNotFoundException("Không tìm thấy nhân viên.");
+
+            if (!staff.IsActive)
+                throw new InvalidOperationException(
+                    "Nhân viên đã bị vô hiệu hoá, không thể tạo ca làm việc.");
 
             // Staff phải được phân công sân đó mới được tạo ca
             var isAssigned = await _staffRepo.IsStaffAssignedToPitchAsync(staffId, request.PitchId);
