@@ -27,6 +27,9 @@ namespace FootballBooking_BE
             builder.Services.Configure<FootballBooking_BE.Models.EmailSettings>(
                 builder.Configuration.GetSection("EmailSettings"));
 
+            builder.Services.Configure<FootballBooking_BE.Models.CloudinarySettings>(
+                builder.Configuration.GetSection("Cloudinary"));
+
             // ─── CORS ─────────────────────────────────────────────────────
             builder.Services.AddCors(options =>
             {
@@ -94,6 +97,7 @@ namespace FootballBooking_BE
             builder.Services.AddScoped<IPriceSlotService, PriceSlotService>();
             builder.Services.AddScoped<IBookingRepository, BookingRepository>();
             builder.Services.AddScoped<IBookingService, BookingService>();
+            builder.Services.AddScoped<ICloudinaryService, FootballBooking_BE.Services.Implementations.CloudinaryService>();
 
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

@@ -54,9 +54,9 @@ namespace FootballBooking_BE.Services.Implementations
             var pitch = await _pitchRepo.GetPitchByIdAsync(id);
             if (pitch == null) return false;
 
-            if (!string.IsNullOrEmpty(request.PitchName)) pitch.PitchName = request.PitchName;
-            if (!string.IsNullOrEmpty(request.PitchType)) pitch.PitchType = request.PitchType;
-            if (!string.IsNullOrEmpty(request.Status)) pitch.Status = request.Status;
+            if (request.PitchName != null) pitch.PitchName = request.PitchName;
+            if (request.PitchType != null) pitch.PitchType = request.PitchType;
+            if (request.Status != null) pitch.Status = request.Status;
             if (request.Description != null) pitch.Description = request.Description;
             if (request.ImageUrl != null) pitch.ImageUrl = request.ImageUrl;
 

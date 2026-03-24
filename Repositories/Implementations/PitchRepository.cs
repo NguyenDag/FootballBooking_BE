@@ -57,11 +57,14 @@ namespace FootballBooking_BE.Repositories.Implementations
             var pitch = await _context.Pitches.FindAsync(id);
             if (pitch != null)
             {
-                // Explicitly remove price slots first
-                var slots = _context.PriceSlots.Where(s => s.PitchId == id);
-                _context.PriceSlots.RemoveRange(slots);
-                
-                _context.Pitches.Remove(pitch);
+                pitch.Status = "INACTIVE";
+
+                var assignments = _context.StaffPitchAssignments.Where(a => a.PitchId == id);
+                _context.StaffPitchAssignments.RemoveRange(assignments);
+
+                var shifts = _context.StaffShifts.Where(s => s.PitchId == id);
+                _context.StaffShifts.RemoveRange(shifts);
+
                 await _context.SaveChangesAsync();
             }
         }
