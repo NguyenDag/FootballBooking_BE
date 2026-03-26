@@ -99,6 +99,12 @@ namespace FootballBooking_BE
             builder.Services.AddScoped<IBookingService, BookingService>();
             builder.Services.AddScoped<ICloudinaryService, FootballBooking_BE.Services.Implementations.CloudinaryService>();
 
+            // ─── SEPAY WEBHOOK INTEGRATION ────────────────────────────────
+            builder.Services.Configure<FootballBooking_BE.Models.SePaySettings>(
+                builder.Configuration.GetSection("SePay"));
+            builder.Services.AddScoped<IPaymentService, PaymentService>();
+            builder.Services.AddHttpClient<ISePayService, SePayService>();
+
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
@@ -147,7 +153,7 @@ namespace FootballBooking_BE
                 app.UseSwaggerUI();
             }
 
-            app.UseHttpsRedirection();
+            // app.UseHttpsRedirection();
             app.UseCors("AllowAll");
             app.UseAuthentication();
             app.UseAuthorization();
