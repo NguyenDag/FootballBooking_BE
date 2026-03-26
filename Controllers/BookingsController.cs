@@ -75,7 +75,8 @@ namespace FootballBooking_BE.Controllers
         public async Task<ActionResult<ApiResponse<bool>>> StaffRejectBooking(int detailId, CancelBookingRequest request)
         {
             var staffId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await _bookingService.StaffCancelBookingAsync(staffId, detailId, request);
+            var role = User.FindFirstValue(ClaimTypes.Role)!;
+            var result = await _bookingService.StaffCancelBookingAsync(staffId, role, detailId, request);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
@@ -85,7 +86,8 @@ namespace FootballBooking_BE.Controllers
         public async Task<ActionResult<ApiResponse<bool>>> StaffConfirmBooking(int detailId)
         {
             var staffId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await _bookingService.StaffConfirmBookingAsync(staffId, detailId);
+            var role = User.FindFirstValue(ClaimTypes.Role)!;
+            var result = await _bookingService.StaffConfirmBookingAsync(staffId, role, detailId);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
@@ -95,7 +97,8 @@ namespace FootballBooking_BE.Controllers
         public async Task<ActionResult<ApiResponse<bool>>> BulkCancel(BulkCancelBookingRequest request)
         {
             var staffId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await _bookingService.BulkCancelByPitchAsync(staffId, request);
+            var role = User.FindFirstValue(ClaimTypes.Role)!;
+            var result = await _bookingService.BulkCancelByPitchAsync(staffId, role, request);
             if (!result.Success) return BadRequest(result);
             return Ok(result);
         }
@@ -108,8 +111,9 @@ namespace FootballBooking_BE.Controllers
             if (string.IsNullOrEmpty(userIdStr)) return Unauthorized(ApiResponse<object>.Fail("Không tìm thấy thông tin định danh."));
             
             var staffId = int.Parse(userIdStr);
+            var role = User.FindFirstValue(ClaimTypes.Role)!;
             var targetDate = date ?? DateOnly.FromDateTime(DateTime.Now);
-            var result = await _bookingService.GetStaffBookingsByDateAsync(staffId, targetDate);
+            var result = await _bookingService.GetStaffBookingsByDateAsync(staffId, role, targetDate);
             return Ok(result);
         }
 
@@ -121,7 +125,8 @@ namespace FootballBooking_BE.Controllers
             if (string.IsNullOrEmpty(userIdStr)) return Unauthorized(ApiResponse<object>.Fail("Không tìm thấy thông tin định danh."));
 
             var staffId = int.Parse(userIdStr);
-            var result = await _bookingService.GetStaffPendingBookingsAsync(staffId);
+            var role = User.FindFirstValue(ClaimTypes.Role)!;
+            var result = await _bookingService.GetStaffPendingBookingsAsync(staffId, role);
             return Ok(result);
         }
 
@@ -133,7 +138,8 @@ namespace FootballBooking_BE.Controllers
             if (string.IsNullOrEmpty(userIdStr)) return Unauthorized(ApiResponse<object>.Fail("Không tìm thấy thông tin định danh."));
 
             var staffId = int.Parse(userIdStr);
-            var result = await _bookingService.GetStaffAllBookingsAsync(staffId, date);
+            var role = User.FindFirstValue(ClaimTypes.Role)!;
+            var result = await _bookingService.GetStaffAllBookingsAsync(staffId, role, date);
             return Ok(result);
         }
 

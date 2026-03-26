@@ -3,6 +3,8 @@ using FootballBooking_BE.Data.Entities;
 using FootballBooking_BE.Models.DTOs;
 using FootballBooking_BE.Repositories.Interfaces;
 using FootballBooking_BE.Services.Interfaces;
+using FootballBooking_BE.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace FootballBooking_BE.Services.Implementations
 {
@@ -11,15 +13,18 @@ namespace FootballBooking_BE.Services.Implementations
         private readonly IBookingRepository _bookingRepository;
         private readonly IPriceSlotRepository _priceSlotRepository;
         private readonly IPitchRepository _pitchRepository;
+        private readonly IHubContext<BookingHub> _hubContext;
 
         public BookingService(
             IBookingRepository bookingRepository,
             IPriceSlotRepository priceSlotRepository,
-            IPitchRepository pitchRepository)
+            IPitchRepository pitchRepository,
+            IHubContext<BookingHub> hubContext)
         {
             _bookingRepository = bookingRepository;
             _priceSlotRepository = priceSlotRepository;
             _pitchRepository = pitchRepository;
+            _hubContext = hubContext;
         }
 
         public async Task<ApiResponse<BookingResponse>> CreateBookingAsync(int userId, BookingCreateRequest request)
@@ -106,7 +111,12 @@ namespace FootballBooking_BE.Services.Implementations
             };
 
             var createdBooking = await _bookingRepository.CreateBookingAsync(booking);
-            return ApiResponse<BookingResponse>.Ok(MapToResponse(createdBooking));
+            var response = MapToResponse(createdBooking);
+
+            // Notify Admins/Staff real-time
+            await _hubContext.Clients.All.SendAsync("NewBooking", response);
+
+            return ApiResponse<BookingResponse>.Ok(response);
         }
 
         public async Task<ApiResponse<IEnumerable<AvailabilitySlot>>> GetAvailableSlotsAsync(int pitchId, DateOnly playDate)
@@ -250,7 +260,7 @@ namespace FootballBooking_BE.Services.Implementations
             return ApiResponse<bool>.Ok(true);
         }
 
-        public async Task<ApiResponse<bool>> StaffCancelBookingAsync(int staffId, int detailId, CancelBookingRequest request)
+        public async Task<ApiResponse<bool>> StaffCancelBookingAsync(int staffId, string role, int detailId, CancelBookingRequest request)
         {
             var detail = await _bookingRepository.GetBookingDetailByIdAsync(detailId);
             if (detail == null)
@@ -258,11 +268,14 @@ namespace FootballBooking_BE.Services.Implementations
                 return ApiResponse<bool>.Fail("Không tìm thấy thông tin đặt sân.");
             }
 
-            // Check if staff is assigned to this pitch
-            bool isAssigned = await _bookingRepository.IsStaffAssignedToPitchAsync(staffId, detail.PitchId);
-            if (!isAssigned)
+            // Check if staff is assigned to this pitch, skip for ADMIN
+            if (role != UserRole.Admin)
             {
-                return ApiResponse<bool>.Fail("Bạn không có quyền quản lý sân này.");
+                bool isAssigned = await _bookingRepository.IsStaffAssignedToPitchAsync(staffId, detail.PitchId);
+                if (!isAssigned)
+                {
+                    return ApiResponse<bool>.Fail("Bạn không có quyền quản lý sân này.");
+                }
             }
 
             if (detail.DetailStatus == "CANCELLED" || detail.DetailStatus == "COMPLETED" || detail.DetailStatus == "REJECTED")
@@ -292,12 +305,19 @@ namespace FootballBooking_BE.Services.Implementations
                     booking.Status = "REJECTED";
                 }
                 await _bookingRepository.UpdateBookingAsync(booking);
+
+                // Notify UI about status change
+                await _hubContext.Clients.All.SendAsync("BookingStatusChanged", new { 
+                    BookingId = booking.BookingId, 
+                    DetailId = detailId, 
+                    NewStatus = "REJECTED" 
+                });
             }
 
             return ApiResponse<bool>.Ok(true);
         }
 
-        public async Task<ApiResponse<bool>> StaffConfirmBookingAsync(int staffId, int detailId)
+        public async Task<ApiResponse<bool>> StaffConfirmBookingAsync(int staffId, string role, int detailId)
         {
             var detail = await _bookingRepository.GetBookingDetailByIdAsync(detailId);
             if (detail == null)
@@ -305,11 +325,14 @@ namespace FootballBooking_BE.Services.Implementations
                 return ApiResponse<bool>.Fail("Không tìm thấy thông tin đặt sân.");
             }
 
-            // Check if staff is assigned to this pitch
-            bool isAssigned = await _bookingRepository.IsStaffAssignedToPitchAsync(staffId, detail.PitchId);
-            if (!isAssigned)
+            // Check if staff is assigned to this pitch, skip for ADMIN
+            if (role != UserRole.Admin)
             {
-                return ApiResponse<bool>.Fail("Bạn không có quyền quản lý sân này.");
+                bool isAssigned = await _bookingRepository.IsStaffAssignedToPitchAsync(staffId, detail.PitchId);
+                if (!isAssigned)
+                {
+                    return ApiResponse<bool>.Fail("Bạn không có quyền quản lý sân này.");
+                }
             }
 
             if (detail.DetailStatus != BookingStatus.Pending)
@@ -336,18 +359,28 @@ namespace FootballBooking_BE.Services.Implementations
                 // If any detail is confirmed, parent booking becomes CONFIRMED
                 booking.Status = BookingStatus.Confirmed;
                 await _bookingRepository.UpdateBookingAsync(booking);
+
+                // Notify UI about status change
+                await _hubContext.Clients.All.SendAsync("BookingStatusChanged", new { 
+                    BookingId = booking.BookingId, 
+                    DetailId = detailId, 
+                    NewStatus = BookingStatus.Confirmed 
+                });
             }
 
             return ApiResponse<bool>.Ok(true);
         }
 
-        public async Task<ApiResponse<bool>> BulkCancelByPitchAsync(int staffId, BulkCancelBookingRequest request)
+        public async Task<ApiResponse<bool>> BulkCancelByPitchAsync(int staffId, string role, BulkCancelBookingRequest request)
         {
-            // Check if staff is assigned to this pitch
-            bool isAssigned = await _bookingRepository.IsStaffAssignedToPitchAsync(staffId, request.PitchId);
-            if (!isAssigned)
+            // Check if staff is assigned to this pitch, skip for ADMIN
+            if (role != UserRole.Admin)
             {
-                return ApiResponse<bool>.Fail("Bạn không có quyền quản lý sân này.");
+                bool isAssigned = await _bookingRepository.IsStaffAssignedToPitchAsync(staffId, request.PitchId);
+                if (!isAssigned)
+                {
+                    return ApiResponse<bool>.Fail("Bạn không có quyền quản lý sân này.");
+                }
             }
 
             var activeDetails = await _bookingRepository.GetActiveBookingDetailsByPitchAsync(request.PitchId, request.FromDate);
@@ -594,31 +627,20 @@ namespace FootballBooking_BE.Services.Implementations
             return ApiResponse<IEnumerable<BookingResponse>>.Ok(bookings);
         }
 
-        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffBookingsByDateAsync(int staffId, DateOnly date)
+        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffBookingsByDateAsync(int staffId, string role, DateOnly date)
         {
-            var staffDetails = await _bookingRepository.GetBookingDetailsByStaffAndDateAsync(staffId, date);
-
-            var bookings = staffDetails
-                .GroupBy(d => d.BookingId)
-                .Select(g => MapToResponseFromDetails(g.Key, g.ToList()))
-                .ToList();
-
-            return ApiResponse<IEnumerable<BookingResponse>>.Ok(bookings);
-        }
-
-        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffAllBookingsAsync(int staffId, DateOnly? date = null)
-        {
-            IEnumerable<BookingDetail> staffDetails;
-            if (date.HasValue)
+            IEnumerable<BookingDetail> details;
+            if (role == UserRole.Admin)
             {
-                staffDetails = await _bookingRepository.GetBookingDetailsByStaffAndDateAsync(staffId, date.Value);
+                var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
+                details = allDetails.Where(d => d.PlayDate == date);
             }
             else
             {
-                staffDetails = await _bookingRepository.GetBookingDetailsByStaffAsync(staffId);
+                details = await _bookingRepository.GetBookingDetailsByStaffAndDateAsync(staffId, date);
             }
 
-            var bookings = staffDetails
+            var bookings = details
                 .GroupBy(d => d.BookingId)
                 .Select(g => MapToResponseFromDetails(g.Key, g.ToList()))
                 .ToList();
@@ -626,11 +648,51 @@ namespace FootballBooking_BE.Services.Implementations
             return ApiResponse<IEnumerable<BookingResponse>>.Ok(bookings);
         }
 
-        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffPendingBookingsAsync(int staffId)
+        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffAllBookingsAsync(int staffId, string role, DateOnly? date = null)
         {
-            var pendingDetails = await _bookingRepository.GetPendingBookingDetailsByStaffAsync(staffId);
+            IEnumerable<BookingDetail> details;
+            if (role == UserRole.Admin)
+            {
+                details = await _bookingRepository.GetAllBookingDetailsAsync();
+                if (date.HasValue)
+                {
+                    details = details.Where(d => d.PlayDate == date.Value);
+                }
+            }
+            else
+            {
+                if (date.HasValue)
+                {
+                    details = await _bookingRepository.GetBookingDetailsByStaffAndDateAsync(staffId, date.Value);
+                }
+                else
+                {
+                    details = await _bookingRepository.GetBookingDetailsByStaffAsync(staffId);
+                }
+            }
 
-            var bookings = pendingDetails
+            var bookings = details
+                .GroupBy(d => d.BookingId)
+                .Select(g => MapToResponseFromDetails(g.Key, g.ToList()))
+                .ToList();
+
+            return ApiResponse<IEnumerable<BookingResponse>>.Ok(bookings);
+        }
+
+        public async Task<ApiResponse<IEnumerable<BookingResponse>>> GetStaffPendingBookingsAsync(int staffId, string role)
+        {
+            IEnumerable<BookingDetail> details;
+            if (role == UserRole.Admin)
+            {
+                var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
+                details = allDetails.Where(d => d.DetailStatus == BookingStatus.Pending);
+            }
+            else
+            {
+                details = await _bookingRepository.GetPendingBookingDetailsByStaffAsync(staffId);
+            }
+
+            var bookings = details
                 .GroupBy(d => d.BookingId)
                 .Select(g => MapToResponseFromDetails(g.Key, g.ToList()))
                 .ToList();

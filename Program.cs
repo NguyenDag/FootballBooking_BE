@@ -5,11 +5,13 @@ using FootballBooking_BE.Middleware;
 using FootballBooking_BE.Repositories.Implementations;
 using FootballBooking_BE.Repositories.Interfaces;
 using FootballBooking_BE.Services.Implementations;
+using FootballBooking_BE.Services.HostedServices;
 using FootballBooking_BE.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using FootballBooking_BE.Hubs;
 
 namespace FootballBooking_BE
 {
@@ -30,15 +32,18 @@ namespace FootballBooking_BE
             builder.Services.Configure<FootballBooking_BE.Models.CloudinarySettings>(
                 builder.Configuration.GetSection("Cloudinary"));
 
+            builder.Services.AddSignalR();
+
             // ─── CORS ─────────────────────────────────────────────────────
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowAll",
                     policy =>
                     {
-                        policy.AllowAnyOrigin()
+                        policy.WithOrigins("http://localhost:5173")
                               .AllowAnyMethod()
-                              .AllowAnyHeader();
+                              .AllowAnyHeader()
+                              .AllowCredentials();
                     });
             });
 
@@ -98,6 +103,9 @@ namespace FootballBooking_BE
             builder.Services.AddScoped<IBookingRepository, BookingRepository>();
             builder.Services.AddScoped<IBookingService, BookingService>();
             builder.Services.AddScoped<ICloudinaryService, FootballBooking_BE.Services.Implementations.CloudinaryService>();
+            
+            // Background Jobs
+            builder.Services.AddHostedService<BookingCleanupBackgroundService>();
 
             // ─── SEPAY WEBHOOK INTEGRATION ────────────────────────────────
             builder.Services.Configure<FootballBooking_BE.Models.SePaySettings>(
@@ -160,6 +168,7 @@ namespace FootballBooking_BE
 
 
             app.MapControllers();
+            app.MapHub<BookingHub>("/bookingHub");
 
             // Chuyển hướng mặc định về Swagger
             app.MapGet("/", () => Results.Redirect("/swagger"));
