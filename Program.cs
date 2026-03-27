@@ -175,6 +175,9 @@ namespace FootballBooking_BE
 
             // Chuyển hướng mặc định về Swagger
             app.MapGet("/", () => Results.Redirect("/swagger"));
+            
+            // Endpoint kiểm tra cho Vercel (Debug 404)
+            app.MapGet("/ping", () => "pong");
 
             app.Run();
         }
