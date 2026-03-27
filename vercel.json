@@ -3,7 +3,7 @@
   "builds": [
     {
       "src": "FootballBooking_BE.csproj",
-      "use": "vercel-dotnet"
+      "use": "lucas-sc/vercel-dotnet"
     }
   ],
   "routes": [
