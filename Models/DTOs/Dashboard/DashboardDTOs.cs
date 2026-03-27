@@ -33,6 +33,10 @@ namespace FootballBooking_BE.Models.DTOs.Dashboard
         public int TotalBookings { get; set; }
         public decimal TotalRevenue { get; set; }
         public double CancellationRate { get; set; } // percentage
+        public int CompletedCount { get; set; }
+        public int CancelledCount { get; set; }
+        public int PendingCount { get; set; }
+        public int ConfirmedCount { get; set; }
         
         public List<BookingsByDateDto> BookingsByDate { get; set; } = new();
         public List<RevenueByPitchDto> RevenueByPitch { get; set; } = new();

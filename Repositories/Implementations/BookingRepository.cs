@@ -142,5 +142,37 @@ namespace FootballBooking_BE.Repositories.Implementations
                     .ThenByDescending(d => d.StartTime)
                 .ToListAsync();
         }
+
+        public async Task<IEnumerable<RefundPolicy>> GetActiveRefundPoliciesAsync()
+        {
+            return await _context.RefundPolicies
+                .Where(p => p.IsActive)
+                .OrderByDescending(p => p.CancelBeforeHours)
+                .ToListAsync();
+        }
+
+        public async Task<Wallet?> GetWalletByUserIdAsync(int userId)
+        {
+            return await _context.Wallets
+                .FirstOrDefaultAsync(w => w.UserId == userId);
+        }
+
+        public async Task UpdateWalletAsync(Wallet wallet)
+        {
+            _context.Wallets.Update(wallet);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task CreateTransactionAsync(Transaction transaction)
+        {
+            _context.Transactions.Add(transaction);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task CreateRefundAsync(Refund refund)
+        {
+            _context.Refunds.Add(refund);
+            await _context.SaveChangesAsync();
+        }
     }
 }

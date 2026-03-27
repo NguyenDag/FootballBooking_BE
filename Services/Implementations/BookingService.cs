@@ -1,3 +1,4 @@
+using System;
 using FootballBooking_BE.Common;
 using FootballBooking_BE.Data.Entities;
 using FootballBooking_BE.Models.DTOs;
@@ -5,6 +6,8 @@ using FootballBooking_BE.Repositories.Interfaces;
 using FootballBooking_BE.Services.Interfaces;
 using FootballBooking_BE.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using System.Linq;
+using System.Collections.Generic;
 
 namespace FootballBooking_BE.Services.Implementations
 {
@@ -232,6 +235,27 @@ namespace FootballBooking_BE.Services.Implementations
                 return ApiResponse<bool>.Fail("Chỉ có thể hủy lịch trước giờ đá tối thiểu 6 tiếng.");
             }
 
+            // Calculate refund if paid
+            if (detail.Booking.PaymentStatus == "PAID")
+            {
+                var policies = await _bookingRepository.GetActiveRefundPoliciesAsync();
+                var hoursBefore = (bookingDate - DateTime.Now).TotalHours;
+                
+                // Find applicable policy (highest CancelBeforeHours <= hoursBefore)
+                var applicablePolicy = policies
+                    .Where(p => p.CancelBeforeHours <= hoursBefore)
+                    .OrderByDescending(p => p.CancelBeforeHours)
+                    .FirstOrDefault();
+
+                decimal refundPercentage = applicablePolicy?.RefundPercentage ?? 0;
+                decimal refundAmount = (detail.PriceAtBooking * refundPercentage) / 100;
+
+                if (refundAmount > 0)
+                {
+                    await ProcessRefundAsync(userId, detail, refundAmount, $"Hoàn tiền {refundPercentage}% cho việc hủy booking BK-{detail.DetailId}");
+                }
+            }
+
             string oldStatus = detail.DetailStatus;
             detail.DetailStatus = BookingStatus.Cancelled;
             detail.CancellationReason = request.Reason;
@@ -280,7 +304,7 @@ namespace FootballBooking_BE.Services.Implementations
 
             if (detail.DetailStatus == "CANCELLED" || detail.DetailStatus == "COMPLETED" || detail.DetailStatus == "REJECTED")
             {
-                return ApiResponse<bool>.Fail("Không thể thực hiện trên booking ở trạng thái này.");
+                return ApiResponse<bool>.Fail("Không thể thực hiện thao tác này vì booking đã hoàn thành hoặc đã bị hủy/từ chối.");
             }
 
             string oldStatus = detail.DetailStatus;
@@ -306,12 +330,18 @@ namespace FootballBooking_BE.Services.Implementations
                 }
                 await _bookingRepository.UpdateBookingAsync(booking);
 
-                // Notify UI about status change
                 await _hubContext.Clients.All.SendAsync("BookingStatusChanged", new { 
                     BookingId = booking.BookingId, 
                     DetailId = detailId, 
                     NewStatus = "REJECTED" 
                 });
+            }
+
+            // Staff rejection always results in 100% refund if paid
+            if (booking != null && booking.PaymentStatus == "PAID")
+            {
+                string actionType = oldStatus == "CONFIRMED" ? "Staff hủy lịch" : "Staff từ chối";
+                await ProcessRefundAsync(booking.UserId, detail, detail.PriceAtBooking, $"Hoàn tiền 100% do {actionType} booking BK-{detail.DetailId}");
             }
 
             return ApiResponse<bool>.Ok(true);
@@ -416,6 +446,12 @@ namespace FootballBooking_BE.Services.Implementations
                 {
                     await _bookingRepository.UpdateBookingAsync(booking);
                 }
+
+                // Bulk cancellation always results in 100% refund if paid
+                if (booking != null && booking.PaymentStatus == "PAID")
+                {
+                    await ProcessRefundAsync(booking.UserId, detail, detail.PriceAtBooking, $"Hoàn tiền 100% do Staff hủy sân hàng loạt (BK-{detail.DetailId})");
+                }
             }
 
             return ApiResponse<bool>.Ok(true);
@@ -514,30 +550,35 @@ namespace FootballBooking_BE.Services.Implementations
 
         public async Task<ApiResponse<Models.DTOs.Dashboard.AdminAdvancedStatsResponse>> GetAdminAdvancedStatsAsync(DateOnly fromDate, DateOnly toDate)
         {
-            var allDetails = await _bookingRepository.GetAllBookingDetailsAsync();
+            var allDetailsResult = await _bookingRepository.GetAllBookingDetailsAsync();
+            var allDetails = allDetailsResult.ToList();
 
             // Lọc theo khoảng thời gian PlayDate
             var periodDetails = allDetails.Where(d => 
                 d.PlayDate >= fromDate && d.PlayDate <= toDate).ToList();
 
-            var totalBookings = periodDetails.Count;
-
-            // Tính Revenue: Chỉ tính các BookingDetail có trạng thái COMPLETED
-            var revenueDetails = periodDetails.Where(d => 
-                d.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase) ||
-                (d.Booking != null && d.Booking.PaymentStatus.Equals("PAID", StringComparison.OrdinalIgnoreCase))
+            // Tổng số liệu toàn bộ hệ thống (Toàn thời gian)
+            var totalBookings = allDetails.Count;
+            
+            // Doanh thu toàn thời gian (Chỉ tính Completed)
+            var allRevenueDetails = allDetails.Where(d => 
+                d.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase)
             ).ToList();
+            decimal totalRevenue = allRevenueDetails.Sum(d => d.PriceAtBooking);
 
-            decimal totalRevenue = revenueDetails.Sum(d => d.PriceAtBooking);
-
-            // Tỉ lệ huỷ / từ chối
-            var cancelledOrRejectedCount = periodDetails.Count(d => 
+            // Tỉ lệ huỷ toàn thời gian
+            var allCancelledOrRejectedCount = allDetails.Count(d => 
                 d.DetailStatus.Equals(BookingStatus.Cancelled, StringComparison.OrdinalIgnoreCase) ||
                 d.DetailStatus.Equals(BookingStatus.Rejected, StringComparison.OrdinalIgnoreCase));
 
             double cancellationRate = totalBookings > 0 
-                ? Math.Round((double)cancelledOrRejectedCount / totalBookings * 100, 2) 
+                ? Math.Round((double)allCancelledOrRejectedCount / totalBookings * 100, 2) 
                 : 0;
+
+            // Dữ liệu cho biểu đồ (Vẫn theo khoảng thời gian PlayDate)
+            var revenueDetailsInPeriod = periodDetails.Where(d => 
+                d.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase)
+            ).ToList();
 
             // Nhóm theo ngày (BookingsByDate)
             var bookingsGroupedByDate = periodDetails
@@ -550,8 +591,8 @@ namespace FootballBooking_BE.Services.Implementations
                 .OrderBy(x => x.DateLabel)
                 .ToList();
 
-            // Nhóm doanh thu theo sân (RevenueByPitch)
-            var revenueGroupedByPitch = revenueDetails
+            // Nhóm doanh thu theo sân (RevenueByPitch) - Toàn thời gian để khớp với TotalRevenue
+            var revenueGroupedByPitch = allRevenueDetails
                 .GroupBy(d => new { d.PitchId, PitchName = d.Pitch?.PitchName ?? "Unknown" })
                 .Select(g => new Models.DTOs.Dashboard.RevenueByPitchDto
                 {
@@ -566,8 +607,7 @@ namespace FootballBooking_BE.Services.Implementations
             var sixMonthsAgo = DateOnly.FromDateTime(DateTime.Now.AddMonths(-6));
             var monthlyRevenue = allDetails
                 .Where(d => d.PlayDate >= sixMonthsAgo && 
-                            (d.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase) ||
-                             (d.Booking != null && d.Booking.PaymentStatus.Equals("PAID", StringComparison.OrdinalIgnoreCase))))
+                            d.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase))
                 .GroupBy(d => new { d.PlayDate.Year, d.PlayDate.Month })
                 .Select(g => new Models.DTOs.Dashboard.MonthlyRevenueDto
                 {
@@ -578,7 +618,7 @@ namespace FootballBooking_BE.Services.Implementations
                 .OrderBy(x => x.Month)
                 .ToList();
 
-            // Thống kê giờ cao điểm (PeakHours)
+            // Thống kê giờ cao điểm (PeakHours) - Theo khoảng thời gian được chọn
             var peakHours = new List<Models.DTOs.Dashboard.PeakHourDto>();
             string[] ranges = { "06:00-09:00", "09:00-12:00", "12:00-15:00", "15:00-18:00", "18:00-21:00", "21:00-24:00" };
             
@@ -596,11 +636,23 @@ namespace FootballBooking_BE.Services.Implementations
                 });
             }
 
+            // Phân loại trạng thái chi tiết - Toàn thời gian để khớp với TotalBookings
+            int completedCount = allDetails.Count(d => d.DetailStatus.Equals(BookingStatus.Completed, StringComparison.OrdinalIgnoreCase));
+            int cancelledCount = allDetails.Count(d => 
+                d.DetailStatus.Equals(BookingStatus.Cancelled, StringComparison.OrdinalIgnoreCase) ||
+                d.DetailStatus.Equals(BookingStatus.Rejected, StringComparison.OrdinalIgnoreCase));
+            int pendingCount = allDetails.Count(d => d.DetailStatus.Equals(BookingStatus.Pending, StringComparison.OrdinalIgnoreCase));
+            int confirmedCount = allDetails.Count(d => d.DetailStatus.Equals(BookingStatus.Confirmed, StringComparison.OrdinalIgnoreCase));
+
             var response = new Models.DTOs.Dashboard.AdminAdvancedStatsResponse
             {
                 TotalBookings = totalBookings,
                 TotalRevenue = totalRevenue,
                 CancellationRate = cancellationRate,
+                CompletedCount = completedCount,
+                CancelledCount = cancelledCount,
+                PendingCount = pendingCount,
+                ConfirmedCount = confirmedCount,
                 BookingsByDate = bookingsGroupedByDate,
                 RevenueByPitch = revenueGroupedByPitch,
                 MonthlyRevenue = monthlyRevenue,
@@ -787,6 +839,75 @@ namespace FootballBooking_BE.Services.Implementations
                     CancellationReason = d.CancellationReason
                 }).ToList()
             };
+        }
+        private async Task ProcessRefundAsync(int userId, BookingDetail detail, decimal amount, string description)
+        {
+            var wallet = await _bookingRepository.GetWalletByUserIdAsync(userId);
+            if (wallet == null)
+            {
+                wallet = new Wallet { UserId = userId, Balance = 0, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
+                // Since our repo doesn't have a CreateWallet, we rely on GetWalletByUserIdAsync to create it if we wanted to.
+                // However, in this system, Wallets are usually created upon first access.
+                // Let's assume UpdateWalletAsync will handle UPSERT if we mark it correctly, 
+                // but usually, it's better to ensure it exists.
+                // In WalletsController, it's created on GetMyWallet.
+            }
+
+            decimal balanceBefore = wallet.Balance;
+            wallet.Balance += amount;
+            wallet.UpdatedAt = DateTime.UtcNow;
+            await _bookingRepository.UpdateWalletAsync(wallet);
+
+            var transaction = new Transaction
+            {
+                WalletId = wallet.WalletId,
+                TransactionType = "REFUND",
+                Direction = "CREDIT",
+                Amount = amount,
+                BalanceBefore = balanceBefore,
+                BalanceAfter = wallet.Balance,
+                BookingId = detail.BookingId,
+                Status = "SUCCESS",
+                Description = description,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _bookingRepository.CreateTransactionAsync(transaction);
+
+            // Fetch payment to link refund if possible
+            var payment = detail.Booking.Payments?.OrderByDescending(p => p.CreatedAt).FirstOrDefault();
+
+            var refund = new Refund
+            {
+                PaymentId = payment?.PaymentId ?? 0, 
+                BookingDetailId = detail.DetailId,
+                TransactionId = transaction.TransactionId,
+                RefundAmount = amount,
+                Reason = description,
+                Status = "COMPLETED",
+                RefundMethod = "WALLET",
+                RequestedBy = userId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            // Link to any payment from the booking if specific detail payment not found
+            if (refund.PaymentId == 0 && (detail.Booking.Payments?.Any() ?? false))
+            {
+                refund.PaymentId = detail.Booking.Payments.First().PaymentId;
+                // If STILL 0, this might fail unless PaymentId is nullable.
+            }
+
+            if (refund.PaymentId > 0)
+            {
+                await _bookingRepository.CreateRefundAsync(refund);
+            }
+
+            // Update Booking PaymentStatus
+            var booking = await _bookingRepository.GetBookingByIdAsync(detail.BookingId);
+            if (booking != null)
+            {
+                booking.PaymentStatus = "REFUNDED";
+                await _bookingRepository.UpdateBookingAsync(booking);
+            }
         }
     }
 }

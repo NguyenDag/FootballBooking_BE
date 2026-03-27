@@ -4,7 +4,7 @@ namespace FootballBooking_BE.Services.Interfaces
 {
     public interface IPaymentService
     {
-        Task<bool> ProcessWebhookAsync(SePayWebhookPayload payload);
-        Task<int> SyncSePayTransactionsAsync();
+        Task<PaymentProcessResult> ProcessWebhookAsync(SePayWebhookPayload payload);
+        Task<SyncResult> SyncSePayTransactionsAsync();
     }
 }

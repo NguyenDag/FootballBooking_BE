@@ -52,7 +52,7 @@ namespace FootballBooking_BE.Controllers
             try 
             {
                 var result = await _paymentService.ProcessWebhookAsync(payload);
-                return Ok(new { status = result ? "success" : "skipped" });
+                return Ok(new { status = result == PaymentProcessResult.Skipped ? "skipped" : "success", detail = result.ToString() });
             }
             catch (Exception ex)
             {
@@ -67,8 +67,8 @@ namespace FootballBooking_BE.Controllers
         {
             try
             {
-                var updatedCount = await _paymentService.SyncSePayTransactionsAsync();
-                return Ok(ApiResponse<object>.Ok(new { updatedCount }));
+                var result = await _paymentService.SyncSePayTransactionsAsync();
+                return Ok(ApiResponse<SyncResult>.Ok(result));
             }
             catch (Exception ex)
             {

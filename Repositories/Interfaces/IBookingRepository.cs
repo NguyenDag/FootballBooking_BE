@@ -18,5 +18,12 @@ namespace FootballBooking_BE.Repositories.Interfaces
         Task<IEnumerable<BookingDetail>> GetBookingDetailsByStaffAsync(int staffId);
         Task<IEnumerable<BookingDetail>> GetBookingDetailsByStaffAndDateAsync(int staffId, DateOnly date);
         Task<IEnumerable<BookingDetail>> GetPendingBookingDetailsByStaffAsync(int staffId);
+        
+        // Refund/Wallet related
+        Task<IEnumerable<RefundPolicy>> GetActiveRefundPoliciesAsync();
+        Task<Wallet?> GetWalletByUserIdAsync(int userId);
+        Task UpdateWalletAsync(Wallet wallet);
+        Task CreateTransactionAsync(Transaction transaction);
+        Task CreateRefundAsync(Refund refund);
     }
 }
