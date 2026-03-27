@@ -155,10 +155,13 @@ namespace FootballBooking_BE
             app.UseMiddleware<ExceptionMiddleware>(); // Global error handler
 
             // Configure the HTTP request pipeline.
+            // Bật Swagger ở tất cả môi trường để có thể kiểm tra trên Vercel
+            app.UseSwagger();
+            app.UseSwaggerUI();
+
             if (app.Environment.IsDevelopment())
             {
-                app.UseSwagger();
-                app.UseSwaggerUI();
+                // Các cấu hình chỉ cho Development nếu có
             }
 
             // app.UseHttpsRedirection();

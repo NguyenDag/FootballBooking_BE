@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "FootballBooking_BE.csproj",
+      "use": "vercel-dotnet"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "FootballBooking_BE.csproj"
+    }
+  ]
+}
