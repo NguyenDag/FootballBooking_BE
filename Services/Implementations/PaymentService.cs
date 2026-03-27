@@ -25,9 +25,10 @@ namespace FootballBooking_BE.Services.Implementations
             _logger.LogInformation("Processing SePay Webhook - ID: {Id}, Content: {Content}, Amount: {Amount}", 
                 payload.Id, payload.Content, payload.TransferAmount);
 
-            if (payload.TransferType?.ToLower() != "in")
+            // For v1, we check if TransferAmount > 0 since transfer_type might be missing
+            if (payload.TransferAmount <= 0)
             {
-                _logger.LogInformation("SePay Webhook: Skipping non-incoming transaction.");
+                _logger.LogInformation("SePay Webhook: Skipping non-incoming or zero-amount transaction.");
                 return false;
             }
 

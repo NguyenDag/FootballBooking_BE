@@ -14,7 +14,7 @@ namespace FootballBooking_BE.Models
     public class SePayWebhookPayload
     {
         [JsonPropertyName("id")]
-        public long Id { get; set; }
+        public string Id { get; set; } = string.Empty;
 
         [JsonPropertyName("gateway")]
         public string Gateway { get; set; } = string.Empty;

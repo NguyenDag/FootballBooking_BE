@@ -22,14 +22,16 @@ namespace FootballBooking_BE.Services.Implementations
         {
             try
             {
-                // Official SePay v2 Endpoint
-                var url = "https://userapi.sepay.vn/v2/transactions/list?limit=" + limit;
+                // SePay v1 logic (as requested by user "Hướng 2")
+                // URL: https://my.sepay.vn/userapi/transactions/list
+                // Auth: Authorization: Bearer <API_TOKEN> (in header)
+                var url = "https://my.sepay.vn/userapi/transactions/list?limit=" + limit;
                 if (!string.IsNullOrEmpty(accountNumber)) url += "&account_number=" + accountNumber;
 
                 _httpClient.DefaultRequestHeaders.Clear();
                 _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_settings.Value.ApiToken}");
 
-                _logger.LogInformation("Syncing SePay v2: {Url}", url);
+                _logger.LogInformation("Syncing SePay v1: {Url}", url);
 
                 var response = await _httpClient.GetAsync(url);
                 var rawJson = await response.Content.ReadAsStringAsync();
