@@ -1,27 +1,9 @@
 {
   "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "FootballBooking_BE.csproj",
-      "use": "lucas-sc/vercel-dotnet"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/swagger/(.*)",
-      "dest": "FootballBooking_BE.csproj"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "FootballBooking_BE.csproj"
-    },
-    {
-      "src": "/ping",
-      "dest": "FootballBooking_BE.csproj"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "FootballBooking_BE.csproj"
+      "source": "/(.*)",
+      "destination": "/"
     }
   ]
 }
